@@ -3,6 +3,8 @@
     "code": "AZ-900",
     "title": "Microsoft Azure Fundamentals",
     "description": "AZ-900 validates foundational knowledge of cloud concepts, core Azure architecture and services, and Azure management and governance. This is an internal practice simulation with original questions written for the IT team; it is not affiliated with or endorsed by Microsoft.",
+    "title_ar": "أساسيات Microsoft Azure",
+    "description_ar": "يتحقق اختبار AZ-900 من المعرفة الأساسية بمفاهيم السحابة، وبنية Azure وخدماتها الأساسية، وإدارة Azure وحوكمتها. هذه محاكاة تدريبية داخلية بأسئلة أصلية كُتبت لفريق تقنية المعلومات، وهي غير تابعة لـ Microsoft ولا معتمدة منها.",
     "duration_minutes": 45,
     "question_count": 45,
     "passing_score": 700
@@ -21,7 +23,15 @@
       },
       "answer": ["B"],
       "explanation": "Under the shared responsibility model the customer always owns their information and data, the devices that connect, and accounts and identities. Operating system patching moves to the provider in PaaS and SaaS, and physical security is always the provider's.",
-      "reference": "https://learn.microsoft.com/en-us/azure/security/fundamentals/shared-responsibility"
+      "reference": "https://learn.microsoft.com/en-us/azure/security/fundamentals/shared-responsibility",
+      "question_ar": "تنقل شركتك أحمال العمل إلى Azure وتريد توضيح نموذج المسؤولية المشتركة. ما المسؤولية التي تبقى دائمًا على عاتق العميل، بغض النظر عمّا إذا كان حمل العمل يستخدم البنية التحتية كخدمة (IaaS) أو النظام الأساسي كخدمة (PaaS) أو البرمجيات كخدمة (SaaS)؟",
+      "options_ar": {
+        "A": "الأمان المادي لمركز البيانات",
+        "B": "المعلومات والبيانات",
+        "C": "تصحيح نظام التشغيل (تطبيق التحديثات)",
+        "D": "البنية التحتية المادية للشبكة"
+      },
+      "explanation_ar": "وفقًا لنموذج المسؤولية المشتركة، يمتلك العميل دائمًا معلوماته وبياناته، والأجهزة التي تتصل بالخدمة، والحسابات والهويات. أما تصحيح نظام التشغيل فينتقل إلى الموفّر في PaaS وSaaS، ويبقى الأمان المادي دائمًا مسؤولية الموفّر."
     },
     {
       "uid": "az900-002",
@@ -36,7 +46,15 @@
       },
       "answer": ["C"],
       "explanation": "IaaS gives the customer the most control: you manage the operating system and everything installed on it, while the provider manages the physical hardware. PaaS and serverless abstract the OS away, so you cannot freely customize it.",
-      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/"
+      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/",
+      "question_ar": "تخطط شركتك لترحيل تطبيق أعمال أساسي إلى السحابة. يحتاج الفريق إلى تحكم كامل في نظام التشغيل ويجب أن يثبّت برامج مخصصة من جهات خارجية على الخوادم. ما نموذج الخدمة السحابية الذي يجب أن تستخدمه؟",
+      "options_ar": {
+        "A": "البرمجيات كخدمة (SaaS)",
+        "B": "النظام الأساسي كخدمة (PaaS)",
+        "C": "البنية التحتية كخدمة (IaaS)",
+        "D": "الحوسبة بلا خادم (Serverless)"
+      },
+      "explanation_ar": "يمنح نموذج IaaS العميلَ أكبر قدر من التحكم: فأنت تدير نظام التشغيل وكل ما هو مثبّت عليه، بينما يدير الموفّر الأجهزة المادية. أما PaaS والحوسبة بلا خادم فيُخفيان نظام التشغيل عنك، فلا يمكنك تخصيصه بحرية."
     },
     {
       "uid": "az900-003",
@@ -51,7 +69,15 @@
       },
       "answer": ["A"],
       "explanation": "Governance in the cloud means using templates, policies, and auditing so resources stay compliant with corporate and regulatory standards. Elasticity and scalability are about adjusting resources to demand, and reliability is about recovering from failures.",
-      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/"
+      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/",
+      "question_ar": "يريد فريق الامتثال لديك أن تستوفي الموارد السحابية المنشورة المعايير المؤسسية والمتطلبات التنظيمية، وذلك باستخدام القوالب والتدقيق التلقائي لاكتشاف انحراف التكوين. ما ميزة السحابة التي يصفها ذلك؟",
+      "options_ar": {
+        "A": "الحوكمة",
+        "B": "المرونة",
+        "C": "الموثوقية",
+        "D": "قابلية التوسع"
+      },
+      "explanation_ar": "تعني الحوكمة في السحابة استخدام القوالب والنُّهج والتدقيق حتى تبقى الموارد متوافقة مع المعايير المؤسسية والتنظيمية. أما المرونة وقابلية التوسع فتتعلقان بتعديل الموارد وفق الطلب، والموثوقية تتعلق بالتعافي من الأعطال."
     },
     {
       "uid": "az900-004",
@@ -66,7 +92,15 @@
       },
       "answer": ["B"],
       "explanation": "CapEx is an up-front spend on physical infrastructure that is then depreciated over time, such as buying servers. The other options are consumption-based charges, which are operational expenditure (OpEx).",
-      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/"
+      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/",
+      "question_ar": "أيٌّ مما يلي مثال على النفقات الرأسمالية (CapEx)؟",
+      "options_ar": {
+        "A": "دفع فاتورة شهرية مقابل الأجهزة الظاهرية في Azure بحسب ساعات الاستخدام",
+        "B": "شراء خوادم مادية ومصفوفات تخزين لمركز بيانات محلي",
+        "C": "الدفع لكل غيغابايت من البيانات المخزنة في Azure Blob Storage",
+        "D": "الدفع مقابل عمليات تنفيذ Azure Functions في نهاية كل شهر"
+      },
+      "explanation_ar": "النفقات الرأسمالية (CapEx) هي إنفاق مقدَّم على بنية تحتية مادية يُستهلك بعد ذلك على مدى الوقت، مثل شراء الخوادم. أما الخيارات الأخرى فهي رسوم قائمة على الاستهلاك، أي نفقات تشغيلية (OpEx)."
     },
     {
       "uid": "az900-005",
@@ -81,7 +115,15 @@
       },
       "answer": ["D"],
       "explanation": "Elasticity is the ability to automatically add and remove resources as demand changes, so you pay only for what the workload needs at the time. High availability is about keeping the service up, not about matching capacity to load.",
-      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/"
+      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/",
+      "question_ar": "يضيف موقع متجر إلكتروني موارد حوسبة تلقائيًا خلال موسم تخفيضات الأعياد، ويزيلها تلقائيًا عندما تعود حركة المرور إلى معدلها الطبيعي. ما ميزة السحابة التي يوضحها ذلك؟",
+      "options_ar": {
+        "A": "القدرة على التنبؤ",
+        "B": "التوفر العالي",
+        "C": "قابلية الإدارة",
+        "D": "المرونة"
+      },
+      "explanation_ar": "المرونة هي القدرة على إضافة الموارد وإزالتها تلقائيًا مع تغيّر الطلب، فتدفع فقط مقابل ما يحتاجه حمل العمل في ذلك الوقت. أما التوفر العالي فيتعلق بإبقاء الخدمة متاحة، لا بمواءمة السعة مع الحمل."
     },
     {
       "uid": "az900-006",
@@ -96,7 +138,15 @@
       },
       "answer": ["B"],
       "explanation": "Vertical scaling (scaling up) adds capability, such as CPU or memory, to an existing resource. Horizontal scaling (scaling out) adds more instances instead of making one instance bigger.",
-      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/"
+      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/",
+      "question_ar": "يعمل تطبيق على جهاز ظاهري واحد في Azure وأداؤه بطيء. تقوم بتغيير حجم الجهاز الظاهري إلى حجم يضم عددًا أكبر من وحدات المعالجة المركزية وذاكرة أكبر. ما نوع التوسع الذي نفذته؟",
+      "options_ar": {
+        "A": "التوسع الأفقي (Scale out)",
+        "B": "التوسع الرأسي (Scale up)",
+        "C": "تقليص عدد المثيلات (Scale in)",
+        "D": "التوزيع الجغرافي"
+      },
+      "explanation_ar": "يضيف التوسع الرأسي (Scale up) قدرات، مثل وحدة المعالجة المركزية أو الذاكرة، إلى مورد موجود. أما التوسع الأفقي (Scale out) فيضيف مزيدًا من المثيلات بدلًا من تكبير مثيل واحد."
     },
     {
       "uid": "az900-007",
@@ -111,7 +161,15 @@
       },
       "answer": ["C"],
       "explanation": "High availability is about keeping resources available with minimal downtime, and Azure SLAs express it as a guaranteed uptime percentage. Scalability and governance are unrelated to uptime guarantees.",
-      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/"
+      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/",
+      "question_ar": "تضمن اتفاقية مستوى الخدمة (SLA) لإحدى خدمات Azure وقت تشغيل بنسبة 99.95 بالمائة. ما ميزة السحابة التي تعبّر عنها اتفاقية مستوى الخدمة هذه بشكل أساسي؟",
+      "options_ar": {
+        "A": "قابلية التوسع",
+        "B": "الحوكمة",
+        "C": "التوفر العالي",
+        "D": "القدرة على التنبؤ"
+      },
+      "explanation_ar": "يتعلق التوفر العالي بإبقاء الموارد متاحة بأقل وقت توقف ممكن، وتعبّر عنه اتفاقيات مستوى الخدمة في Azure بنسبة مئوية مضمونة لوقت التشغيل. أما قابلية التوسع والحوكمة فلا علاقة لهما بضمانات وقت التشغيل."
     },
     {
       "uid": "az900-008",
@@ -126,7 +184,15 @@
       },
       "answer": ["A"],
       "explanation": "Reliability is the ability of a system to recover from failures and continue to function, which the cloud supports through decentralized design across regions. Elasticity concerns matching capacity to demand.",
-      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/"
+      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/",
+      "question_ar": "ما ميزة السحابة التي تصف قدرة النظام على التعافي من الأعطال والاستمرار في العمل، على سبيل المثال من خلال التشغيل عبر مناطق متعددة؟",
+      "options_ar": {
+        "A": "الموثوقية",
+        "B": "المرونة",
+        "C": "قابلية الإدارة",
+        "D": "سرعة الاستجابة للتغيير (Agility)"
+      },
+      "explanation_ar": "الموثوقية هي قدرة النظام على التعافي من الأعطال والاستمرار في العمل، وتدعمها السحابة من خلال تصميم لامركزي عبر المناطق. أما المرونة فتتعلق بمواءمة السعة مع الطلب."
     },
     {
       "uid": "az900-009",
@@ -141,7 +207,15 @@
       },
       "answer": ["D"],
       "explanation": "Predictability in the cloud has two parts: performance predictability (for example through autoscaling and load balancing) and cost predictability (tracking and forecasting spend). Scalability alone does not address cost forecasting.",
-      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/"
+      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/",
+      "question_ar": "يريد فريق المالية لديك التنبؤ بالإنفاق السحابي بدقة، ويريد فريق العمليات أن يكون واثقًا من أن التطبيقات ستحافظ على أداء ثابت مع تغيّر الحمل. ما ميزة السحابة التي تغطي هاتين الحاجتين معًا؟",
+      "options_ar": {
+        "A": "الموثوقية",
+        "B": "الأمان",
+        "C": "قابلية التوسع",
+        "D": "القدرة على التنبؤ"
+      },
+      "explanation_ar": "للقدرة على التنبؤ في السحابة جانبان: القدرة على التنبؤ بالأداء (مثلًا من خلال التوسع التلقائي وموازنة التحميل) والقدرة على التنبؤ بالتكلفة (تتبع الإنفاق وتوقعه). أما قابلية التوسع وحدها فلا تعالج توقع التكاليف."
     },
     {
       "uid": "az900-010",
@@ -156,7 +230,15 @@
       },
       "answer": ["C"],
       "explanation": "Management of the cloud refers to what the cloud does for your resources, such as automatic scaling, template-based deployment, health monitoring with automatic replacement, and alerts. Portals, CLI, and APIs are the tools used for management in the cloud.",
-      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/"
+      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/",
+      "question_ar": "كثيرًا ما توصف قابلية إدارة السحابة بأنها إدارة السحابة (management of the cloud) والإدارة داخل السحابة (management in the cloud). أيٌّ مما يلي مثال على إدارة السحابة؟",
+      "options_ar": {
+        "A": "استخدام مدخل ويب لعرض الموارد وتغييرها",
+        "B": "تشغيل أوامر Azure CLI من نافذة طرفية",
+        "C": "الاستبدال التلقائي للموارد المتعطلة بناءً على مراقبة حالتها الصحية",
+        "D": "استدعاء واجهات REST API من برنامج نصي للنشر"
+      },
+      "explanation_ar": "تشير إدارة السحابة إلى ما تقوم به السحابة لمواردك، مثل التوسع التلقائي، والنشر المستند إلى القوالب، ومراقبة الحالة الصحية مع الاستبدال التلقائي، والتنبيهات. أما المداخل وCLI وواجهات API فهي الأدوات المستخدمة للإدارة داخل السحابة."
     },
     {
       "uid": "az900-011",
@@ -171,7 +253,15 @@
       },
       "answer": ["B"],
       "explanation": "A public cloud is owned and operated by a provider such as Microsoft and is available to anyone who wants to buy services. A private cloud is used by a single organization.",
-      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/"
+      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/",
+      "question_ar": "ما نموذج النشر السحابي الذي يبنيه موفّر سحابي من جهة خارجية ويتحكم فيه ويصونه، ويتيح لأي شخص شراء خدماته واستخدامها؟",
+      "options_ar": {
+        "A": "السحابة الخاصة",
+        "B": "السحابة العامة",
+        "C": "السحابة المختلطة",
+        "D": "مركز بيانات محلي"
+      },
+      "explanation_ar": "السحابة العامة يملكها ويشغّلها موفّر مثل Microsoft، وهي متاحة لكل من يرغب في شراء الخدمات. أما السحابة الخاصة فتستخدمها مؤسسة واحدة."
     },
     {
       "uid": "az900-012",
@@ -186,7 +276,15 @@
       },
       "answer": ["C"],
       "explanation": "A private cloud delivers cloud capabilities such as self-service to a single organization, and it can be hosted entirely in the organization's own datacenter. Hybrid and public models would place some or all resources with a public provider.",
-      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/"
+      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/",
+      "question_ar": "لأسباب تنظيمية، يجب أن تحتفظ مؤسستك بجميع موارد الحوسبة في مركز بياناتها الخاص، لكنها لا تزال تريد أن تتيح للفرق الداخلية توفير الأجهزة الظاهرية بالخدمة الذاتية. ما نموذج النشر الذي يلائم هذه المتطلبات؟",
+      "options_ar": {
+        "A": "السحابة العامة",
+        "B": "السحابة المختلطة",
+        "C": "السحابة الخاصة",
+        "D": "السحابة المتعددة (Multi-cloud)"
+      },
+      "explanation_ar": "تقدّم السحابة الخاصة إمكانات السحابة، مثل الخدمة الذاتية، لمؤسسة واحدة، ويمكن استضافتها بالكامل في مركز بيانات المؤسسة نفسها. أما النموذجان المختلط والعام فيضعان بعض الموارد أو كلها لدى موفّر عام."
     },
     {
       "uid": "az900-013",
@@ -201,7 +299,15 @@
       },
       "answer": ["A"],
       "explanation": "A hybrid cloud combines a private (on-premises) environment with a public cloud and lets workloads and data move between them, for example to burst into the public cloud at peak times.",
-      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/"
+      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/",
+      "question_ar": "تشغّل شركتك تطبيقات قديمة محليًا وتريد استخدام Azure للحصول على سعة إضافية خلال فترات الذروة الموسمية، مع ربط البيئتين وقدرتهما على مشاركة البيانات. ما نموذج النشر الذي يجب أن تستخدمه؟",
+      "options_ar": {
+        "A": "السحابة المختلطة",
+        "B": "السحابة الخاصة",
+        "C": "السحابة العامة فقط",
+        "D": "السحابة المجتمعية"
+      },
+      "explanation_ar": "تجمع السحابة المختلطة بين بيئة خاصة (محلية) وسحابة عامة، وتتيح نقل أحمال العمل والبيانات بينهما، على سبيل المثال للتوسع إلى السحابة العامة في أوقات الذروة."
     },
     {
       "uid": "az900-014",
@@ -216,7 +322,15 @@
       },
       "answer": ["D"],
       "explanation": "Azure VMware Solution runs VMware environments on dedicated Azure bare-metal infrastructure, so teams keep using their existing VMware tools and skills. Azure Arc extends Azure management to resources outside Azure but does not host VMware workloads.",
-      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/"
+      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/",
+      "question_ar": "تشغّل شركتك أحمال عملها على VMware محليًا، وتريد نقلها إلى Azure مع الاستمرار في استخدام أدوات VMware المألوفة مثل vCenter وvSphere. ما خدمة Azure التي يجب أن تستخدمها؟",
+      "options_ar": {
+        "A": "Azure Virtual Desktop",
+        "B": "Azure Arc",
+        "C": "Azure Kubernetes Service (AKS)",
+        "D": "Azure VMware Solution"
+      },
+      "explanation_ar": "تشغّل Azure VMware Solution بيئات VMware على بنية تحتية مخصصة من الخوادم المادية (bare-metal) في Azure، فتواصل الفرق استخدام أدوات VMware ومهاراتها الحالية. أما Azure Arc فتوسّع إدارة Azure لتشمل الموارد خارج Azure، لكنها لا تستضيف أحمال عمل VMware."
     },
     {
       "uid": "az900-015",
@@ -231,7 +345,15 @@
       },
       "answer": ["A"],
       "explanation": "Microsoft 365 is a complete application delivered over the internet, which is SaaS. Azure Virtual Machines is IaaS, and App Service is PaaS.",
-      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/"
+      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/",
+      "question_ar": "أيٌّ مما يلي مثال على البرمجيات كخدمة (SaaS)؟",
+      "options_ar": {
+        "A": "Microsoft 365",
+        "B": "Azure Virtual Machines",
+        "C": "Azure App Service",
+        "D": "Azure Kubernetes Service (AKS)"
+      },
+      "explanation_ar": "Microsoft 365 تطبيق متكامل يُقدَّم عبر الإنترنت، وهذا هو نموذج SaaS. أما Azure Virtual Machines فهي من نوع IaaS، وApp Service من نوع PaaS."
     },
     {
       "uid": "az900-016",
@@ -246,7 +368,15 @@
       },
       "answer": ["C"],
       "explanation": "In PaaS the provider manages the physical infrastructure and the operating system, while the customer keeps responsibility for data, devices, and accounts and identities.",
-      "reference": "https://learn.microsoft.com/en-us/azure/security/fundamentals/shared-responsibility"
+      "reference": "https://learn.microsoft.com/en-us/azure/security/fundamentals/shared-responsibility",
+      "question_ar": "تنشر شركتك تطبيق ويب على خدمة من نوع النظام الأساسي كخدمة (PaaS). وفقًا لنموذج المسؤولية المشتركة، أيٌّ مما يلي يكون الموفّر السحابي مسؤولًا عنه؟",
+      "options_ar": {
+        "A": "الحسابات والهويات",
+        "B": "المعلومات والبيانات",
+        "C": "نظام التشغيل",
+        "D": "أجهزة المستخدمين النهائيين"
+      },
+      "explanation_ar": "في PaaS يدير الموفّر البنية التحتية المادية ونظام التشغيل، بينما يحتفظ العميل بالمسؤولية عن البيانات والأجهزة والحسابات والهويات."
     },
     {
       "uid": "az900-017",
@@ -261,7 +391,15 @@
       },
       "answer": ["D"],
       "explanation": "With serverless computing the provider manages servers, scaling, and patching, and the consumption model bills only for the execution that occurs. Serverless is similar to PaaS, not IaaS, and does not require reserved capacity.",
-      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/"
+      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/",
+      "question_ar": "أي عبارة صحيحة بشأن الحوسبة بلا خادم (Serverless)؟",
+      "options_ar": {
+        "A": "يجب أن توفّر الخوادم التي تشغّل التعليمات البرمجية الخاصة بك وتطبّق عليها التحديثات",
+        "B": "إنها أحد أشكال البنية التحتية كخدمة (IaaS)",
+        "C": "يجب أن تشتري سعة محجوزة قبل أن تتمكن من استخدامها",
+        "D": "يدير الموفّر السحابي البنية التحتية، وتُحاسَب عادةً فقط على الموارد المستخدمة أثناء تشغيل التعليمات البرمجية"
+      },
+      "explanation_ar": "في الحوسبة بلا خادم يدير الموفّر الخوادم والتوسع وتطبيق التحديثات، ولا يحاسبك نموذج الاستهلاك إلا على عمليات التنفيذ التي تحدث فعلًا. والحوسبة بلا خادم أقرب إلى PaaS لا إلى IaaS، ولا تتطلب سعة محجوزة."
     },
     {
       "uid": "az900-018",
@@ -276,7 +414,15 @@
       },
       "answer": ["B"],
       "explanation": "IaaS leaves the customer responsible for the operating system, middleware, runtime, applications, and data, which is the most of any service model. SaaS places the least responsibility on the customer.",
-      "reference": "https://learn.microsoft.com/en-us/azure/security/fundamentals/shared-responsibility"
+      "reference": "https://learn.microsoft.com/en-us/azure/security/fundamentals/shared-responsibility",
+      "question_ar": "ما نموذج الخدمة السحابية الذي يضع أكبر قدر من مسؤولية الإدارة على العميل؟",
+      "options_ar": {
+        "A": "البرمجيات كخدمة (SaaS)",
+        "B": "البنية التحتية كخدمة (IaaS)",
+        "C": "النظام الأساسي كخدمة (PaaS)",
+        "D": "الحوسبة بلا خادم (Serverless)"
+      },
+      "explanation_ar": "يترك IaaS للعميل المسؤولية عن نظام التشغيل والبرامج الوسيطة وبيئة التشغيل والتطبيقات والبيانات، وهو أكبر قدر من المسؤولية بين نماذج الخدمة. أما SaaS فيضع على العميل أقل قدر من المسؤولية."
     },
     {
       "uid": "az900-019",
@@ -291,7 +437,15 @@
       },
       "answer": ["A"],
       "explanation": "Cloud computing is primarily OpEx: you pay for services as you consume them, with no up-front hardware purchase. CapEx is the up-front purchase of physical infrastructure that is depreciated over several years.",
-      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/"
+      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/",
+      "question_ar": "يريد المدير المالي لشركتك تجنّب الاستثمارات الكبيرة المقدَّمة في البنية التحتية، والدفع بدلًا من ذلك مقابل التقنية حسب استخدامها، مع خصم التكلفة في الفترة نفسها التي تُتكبَّد فيها. ما نموذج الإنفاق الذي تتبعه الحوسبة السحابية بشكل أساسي؟",
+      "options_ar": {
+        "A": "النفقات التشغيلية (OpEx)",
+        "B": "النفقات الرأسمالية (CapEx)",
+        "C": "استهلاك الأصول الثابتة",
+        "D": "النفقات المؤجلة"
+      },
+      "explanation_ar": "تتبع الحوسبة السحابية بشكل أساسي نموذج النفقات التشغيلية (OpEx): فأنت تدفع مقابل الخدمات أثناء استهلاكها، دون شراء مسبق للأجهزة. أما النفقات الرأسمالية (CapEx) فهي الشراء المقدَّم لبنية تحتية مادية تُستهلك على مدى عدة سنوات."
     },
     {
       "uid": "az900-020",
@@ -306,7 +460,15 @@
       },
       "answer": ["A", "D"],
       "explanation": "The public cloud requires no up-front capital expenditure to scale, and resources can be provisioned and removed quickly. Complete control over hardware and hosting in your own datacenter are characteristics of a private cloud.",
-      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/"
+      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/",
+      "question_ar": "ما العبارتان اللتان تصفان خصائص السحابة العامة؟ (اختر اثنتين.)",
+      "options_ar": {
+        "A": "لا يلزم إنفاق رأسمالي لزيادة السعة",
+        "B": "تتمتع المؤسسة بتحكم كامل في الأجهزة المادية",
+        "C": "يجب أن تكون الموارد موجودة في مركز البيانات الخاص بالمؤسسة",
+        "D": "يمكن توفير التطبيقات وإلغاء توفيرها بسرعة"
+      },
+      "explanation_ar": "لا تتطلب السحابة العامة إنفاقًا رأسماليًا مقدَّمًا لزيادة السعة، ويمكن توفير الموارد وإزالتها بسرعة. أما التحكم الكامل في الأجهزة والاستضافة في مركز بياناتك الخاص فهما من خصائص السحابة الخاصة."
     },
     {
       "uid": "az900-021",
@@ -322,7 +484,16 @@
       },
       "answer": ["A", "C", "D"],
       "explanation": "Customers always keep responsibility for their information and data, the devices that access cloud services, and accounts and identities. Physical hosts and the physical network are always the provider's responsibility.",
-      "reference": "https://learn.microsoft.com/en-us/azure/security/fundamentals/shared-responsibility"
+      "reference": "https://learn.microsoft.com/en-us/azure/security/fundamentals/shared-responsibility",
+      "question_ar": "وفقًا لنموذج المسؤولية المشتركة، ما المسؤوليات الثلاث التي يحتفظ بها العميل دائمًا بغض النظر عن نموذج الخدمة السحابية؟ (اختر ثلاث إجابات.)",
+      "options_ar": {
+        "A": "المعلومات والبيانات",
+        "B": "الأجهزة المضيفة المادية",
+        "C": "الأجهزة (الهواتف المحمولة وأجهزة الكمبيوتر)",
+        "D": "الحسابات والهويات",
+        "E": "الشبكة المادية"
+      },
+      "explanation_ar": "يحتفظ العملاء دائمًا بالمسؤولية عن معلوماتهم وبياناتهم، والأجهزة التي تصل إلى الخدمات السحابية، والحسابات والهويات. أما الأجهزة المضيفة المادية والشبكة المادية فهي دائمًا مسؤولية الموفّر."
     },
     {
       "uid": "az900-022",
@@ -337,7 +508,15 @@
       },
       "answer": ["A", "C"],
       "explanation": "In PaaS the provider manages the physical hardware and the operating system, including patching. The customer still owns the application code and who can access the data.",
-      "reference": "https://learn.microsoft.com/en-us/azure/security/fundamentals/shared-responsibility"
+      "reference": "https://learn.microsoft.com/en-us/azure/security/fundamentals/shared-responsibility",
+      "question_ar": "تخطط شركتك لنقل تطبيق من خوادم محلية إلى خدمة من نوع النظام الأساسي كخدمة (PaaS). ما المهمتان اللتان سيتولاهما الموفّر السحابي؟ (اختر اثنتين.)",
+      "options_ar": {
+        "A": "تصحيح نظام التشغيل (تطبيق التحديثات)",
+        "B": "كتابة التعليمات البرمجية للتطبيق وصيانتها",
+        "C": "صيانة الأجهزة المادية",
+        "D": "تحديد المستخدمين الذين يمكنهم الوصول إلى بيانات التطبيق"
+      },
+      "explanation_ar": "في PaaS يدير الموفّر الأجهزة المادية ونظام التشغيل، بما في ذلك تطبيق التحديثات. ويظل العميل مالكًا للتعليمات البرمجية للتطبيق ومسؤولًا عن تحديد من يمكنه الوصول إلى البيانات."
     },
     {
       "uid": "az900-023",
@@ -352,7 +531,15 @@
       },
       "answer": ["B", "D"],
       "explanation": "Horizontal scaling (scaling out) adds more instances of a resource, such as more VMs in a scale set or more web servers behind a load balancer. Adding RAM or resizing a VM makes one instance bigger, which is vertical scaling.",
-      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/"
+      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/",
+      "question_ar": "ما الإجراءان اللذان يُعدّان مثالين على التوسع الأفقي؟ (اختر اثنتين.)",
+      "options_ar": {
+        "A": "إضافة ذاكرة RAM إلى جهاز ظاهري موجود",
+        "B": "إضافة مثيلات أجهزة ظاهرية إلى مجموعة توسيع الأجهزة الظاهرية (virtual machine scale set)",
+        "C": "تغيير حجم جهاز ظاهري إلى حجم أكبر",
+        "D": "إضافة مزيد من خوادم الويب خلف موازن تحميل"
+      },
+      "explanation_ar": "يضيف التوسع الأفقي (Scale out) مزيدًا من مثيلات المورد، مثل مزيد من الأجهزة الظاهرية في مجموعة توسيع أو مزيد من خوادم الويب خلف موازن تحميل. أما إضافة ذاكرة RAM أو تغيير حجم جهاز ظاهري فيكبّران مثيلًا واحدًا، وهذا توسع رأسي."
     },
     {
       "uid": "az900-024",
@@ -367,7 +554,15 @@
       },
       "answer": ["A", "C"],
       "explanation": "In the consumption-based model there are no up-front costs, you don't buy infrastructure you may not use, and you pay for additional resources only when needed. Buying for peak demand in advance is the traditional on-premises approach.",
-      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/"
+      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/",
+      "question_ar": "ما العبارتان اللتان تصفان نموذج الدفع حسب الاستهلاك الذي يستخدمه موفّرو السحابة؟ (اختر اثنتين.)",
+      "options_ar": {
+        "A": "لا توجد تكاليف مقدَّمة للبنية التحتية",
+        "B": "يجب أن تشتري مسبقًا سعة كافية للتعامل مع ذروة الطلب",
+        "C": "يمكنك الدفع مقابل الموارد الإضافية فقط عندما تحتاج إليها",
+        "D": "تدفع رسومًا سنوية ثابتة بغض النظر عن حجم استخدامك"
+      },
+      "explanation_ar": "في نموذج الدفع حسب الاستهلاك لا توجد تكاليف مقدَّمة، ولا تشتري بنية تحتية قد لا تستخدمها، وتدفع مقابل الموارد الإضافية فقط عند الحاجة إليها. أما الشراء المسبق لتلبية ذروة الطلب فهو النهج التقليدي في البيئات المحلية."
     },
     {
       "uid": "az900-025",
@@ -381,7 +576,13 @@
       "answer": ["A"],
       "shuffle": false,
       "explanation": "Yes. In IaaS the provider manages the physical infrastructure, but the guest operating system, including its updates, is the customer's responsibility.",
-      "reference": "https://learn.microsoft.com/en-us/azure/security/fundamentals/shared-responsibility"
+      "reference": "https://learn.microsoft.com/en-us/azure/security/fundamentals/shared-responsibility",
+      "question_ar": "العبارة: في نموذج البنية التحتية كخدمة (IaaS)، يكون العميل مسؤولًا عن تصحيح نظام تشغيل أجهزته الظاهرية وتحديثه. هل هذه العبارة صحيحة؟",
+      "options_ar": {
+        "A": "نعم",
+        "B": "لا"
+      },
+      "explanation_ar": "نعم. في IaaS يدير الموفّر البنية التحتية المادية، أما نظام التشغيل الضيف، بما في ذلك تحديثاته، فهو مسؤولية العميل."
     },
     {
       "uid": "az900-026",
@@ -395,7 +596,13 @@
       "answer": ["B"],
       "shuffle": false,
       "explanation": "No. Even with SaaS, the customer remains responsible for their information and data, their devices, and their accounts and identities.",
-      "reference": "https://learn.microsoft.com/en-us/azure/security/fundamentals/shared-responsibility"
+      "reference": "https://learn.microsoft.com/en-us/azure/security/fundamentals/shared-responsibility",
+      "question_ar": "العبارة: نقل جميع أحمال العمل إلى خدمة SaaS يرفع عن العميل كل مسؤولية أمنية. هل هذه العبارة صحيحة؟",
+      "options_ar": {
+        "A": "نعم",
+        "B": "لا"
+      },
+      "explanation_ar": "لا. حتى مع SaaS يظل العميل مسؤولًا عن معلوماته وبياناته، وأجهزته، وحساباته وهوياته."
     },
     {
       "uid": "az900-027",
@@ -409,7 +616,13 @@
       "answer": ["B"],
       "shuffle": false,
       "explanation": "No. Buying physical servers is a capital expenditure with a large up-front cost. Using cloud resources on a consumption basis would avoid the up-front spend and allow fast growth.",
-      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/"
+      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/",
+      "question_ar": "تطلق شركتك مشروعًا جديدًا وتحتاج إلى تقليل الإنفاق المقدَّم على الأجهزة إلى أدنى حد مع الحفاظ على القدرة على النمو بسرعة. الحل: تشتري خوادم مادية إضافية لمركز البيانات المحلي. هل يحقق هذا الهدف؟",
+      "options_ar": {
+        "A": "نعم",
+        "B": "لا"
+      },
+      "explanation_ar": "لا. شراء خوادم مادية نفقات رأسمالية ذات تكلفة مقدَّمة كبيرة. أما استخدام الموارد السحابية بنظام الدفع حسب الاستهلاك فيتجنب الإنفاق المقدَّم ويتيح النمو السريع."
     },
     {
       "uid": "az900-028",
@@ -423,7 +636,13 @@
       "answer": ["A"],
       "shuffle": false,
       "explanation": "Yes. A hybrid cloud uses both public and private clouds in an interconnected environment, letting the organization decide where each workload runs.",
-      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/"
+      "reference": "https://learn.microsoft.com/en-us/training/paths/microsoft-azure-fundamentals-describe-cloud-concepts/",
+      "question_ar": "العبارة: تجمع السحابة المختلطة بين بيئتَي السحابة العامة والسحابة الخاصة، وتتيح مشاركة البيانات والتطبيقات بينهما. هل هذه العبارة صحيحة؟",
+      "options_ar": {
+        "A": "نعم",
+        "B": "لا"
+      },
+      "explanation_ar": "نعم. تستخدم السحابة المختلطة السحابتين العامة والخاصة معًا في بيئة مترابطة، ما يتيح للمؤسسة أن تقرر مكان تشغيل كل حمل عمل."
     },
     {
       "uid": "az900-029",
@@ -438,7 +657,15 @@
       },
       "answer": ["B"],
       "explanation": "Availability zones are physically separate locations inside a region, each with independent power, cooling, and networking, so a failure in one zone doesn't take down the others. A logical grouping of VMs within a datacenter is an availability set.",
-      "reference": "https://learn.microsoft.com/en-us/training/paths/azure-fundamentals-describe-azure-architecture-services/"
+      "reference": "https://learn.microsoft.com/en-us/training/paths/azure-fundamentals-describe-azure-architecture-services/",
+      "question_ar": "أيٌّ مما يلي يصف منطقة توفر (availability zone) في Azure على أفضل وجه؟",
+      "options_ar": {
+        "A": "مجموعة من مناطق Azure ضمن النطاق الجغرافي نفسه",
+        "B": "موقع منفصل فعليًا داخل منطقة Azure، يتكون من مركز بيانات واحد أو أكثر بإمداد طاقة وتبريد وشبكات مستقلة",
+        "C": "تجميع منطقي للأجهزة الظاهرية داخل مركز بيانات واحد",
+        "D": "منطقة ثانية يقرنها Azure بالمنطقة الأساسية لأغراض التعافي من الكوارث"
+      },
+      "explanation_ar": "مناطق التوفر مواقع منفصلة فعليًا داخل المنطقة، لكل منها إمداد طاقة وتبريد وشبكات مستقلة، بحيث لا يؤدي عطل في إحداها إلى توقف الأخرى. أما التجميع المنطقي للأجهزة الظاهرية داخل مركز بيانات فهو مجموعة التوفر (availability set)."
     },
     {
       "uid": "az900-030",
@@ -453,7 +680,15 @@
       },
       "answer": ["C"],
       "explanation": "Azure staggers planned system updates across a region pair so both regions are not updated at the same time. Not every region has a pair, most pairs are in the same geography, and replication to the pair depends on the service and how you configure it (for example, GRS storage).",
-      "reference": "https://learn.microsoft.com/en-us/training/paths/azure-fundamentals-describe-azure-architecture-services/"
+      "reference": "https://learn.microsoft.com/en-us/training/paths/azure-fundamentals-describe-azure-architecture-services/",
+      "question_ar": "أي عبارة صحيحة بشأن أزواج المناطق في Azure؟",
+      "options_ar": {
+        "A": "كل منطقة Azure مقترنة بمنطقة أخرى في نطاق جغرافي مختلف",
+        "B": "تنسخ جميع خدمات Azure كل البيانات تلقائيًا إلى المنطقة المقترنة",
+        "C": "تُطرح تحديثات النظام الأساسي المخطط لها في Azure على المناطق المقترنة منطقةً تلو الأخرى وليس في الوقت نفسه",
+        "D": "تقع المنطقتان في الزوج الواحد في مركز البيانات نفسه"
+      },
+      "explanation_ar": "يوزّع Azure تحديثات النظام المخطط لها على زوج المناطق بشكل متعاقب حتى لا تُحدَّث المنطقتان في الوقت نفسه. ليست لكل منطقة منطقة مقترنة، ومعظم الأزواج تقع ضمن النطاق الجغرافي نفسه، ويعتمد النسخ المتماثل إلى المنطقة المقترنة على الخدمة وعلى طريقة تكوينك لها (مثل تخزين GRS)."
     },
     {
       "uid": "az900-031",
@@ -468,7 +703,15 @@
       },
       "answer": ["D"],
       "explanation": "Azure Government is a sovereign cloud for US government agencies and their partners, physically isolated from public Azure and operated by screened US personnel. Azure operated by 21Vianet is the sovereign cloud in China.",
-      "reference": "https://learn.microsoft.com/en-us/training/paths/azure-fundamentals-describe-azure-architecture-services/"
+      "reference": "https://learn.microsoft.com/en-us/training/paths/azure-fundamentals-describe-azure-architecture-services/",
+      "question_ar": "شركتك متعاقدة مع الوكالات الفيدرالية الأمريكية، ويجب أن تستضيف أحمال العمل في مثيل من Azure معزول فعليًا ومنطقيًا ويشغّله موظفون أمريكيون خضعوا للتدقيق الأمني. ماذا يجب أن تستخدم؟",
+      "options_ar": {
+        "A": "Azure operated by 21Vianet",
+        "B": "منطقة توفر في منطقة أمريكية",
+        "C": "زوج مناطق في الولايات المتحدة",
+        "D": "Azure Government"
+      },
+      "explanation_ar": "Azure Government سحابة سيادية مخصصة للجهات الحكومية الأمريكية وشركائها، معزولة فعليًا عن Azure العامة ويشغّلها موظفون أمريكيون خضعوا للتدقيق الأمني. أما Azure operated by 21Vianet فهي السحابة السيادية في الصين."
     },
     {
       "uid": "az900-032",
@@ -483,7 +726,15 @@
       },
       "answer": ["A"],
       "explanation": "Each resource belongs to exactly one resource group, although it can be moved to another. Resource groups cannot be nested, deleting a resource group deletes every resource in it, and resources can be in different regions from their resource group.",
-      "reference": "https://learn.microsoft.com/en-us/training/paths/azure-fundamentals-describe-azure-architecture-services/"
+      "reference": "https://learn.microsoft.com/en-us/training/paths/azure-fundamentals-describe-azure-architecture-services/",
+      "question_ar": "أي عبارة صحيحة بشأن مجموعات الموارد في Azure؟",
+      "options_ar": {
+        "A": "يمكن أن ينتمي المورد إلى مجموعة موارد واحدة فقط في الوقت نفسه",
+        "B": "يمكن تضمين مجموعات الموارد داخل مجموعات موارد أخرى",
+        "C": "حذف مجموعة الموارد يُبقي مواردها كما هي",
+        "D": "يجب أن تكون جميع الموارد في مجموعة الموارد في المنطقة نفسها التي توجد فيها مجموعة الموارد"
+      },
+      "explanation_ar": "ينتمي كل مورد إلى مجموعة موارد واحدة بالضبط، وإن كان من الممكن نقله إلى مجموعة أخرى. لا يمكن تضمين مجموعات الموارد بعضها داخل بعض، وحذف مجموعة الموارد يحذف كل مورد فيها، ويمكن أن تكون الموارد في مناطق مختلفة عن منطقة مجموعة الموارد."
     },
     {
       "uid": "az900-033",
@@ -498,7 +749,15 @@
       },
       "answer": ["B"],
       "explanation": "A subscription is a billing boundary: Azure produces separate billing reports and invoices for each subscription. Resource groups organize resources but do not produce separate invoices.",
-      "reference": "https://learn.microsoft.com/en-us/training/paths/azure-fundamentals-describe-azure-architecture-services/"
+      "reference": "https://learn.microsoft.com/en-us/training/paths/azure-fundamentals-describe-azure-architecture-services/",
+      "question_ar": "تريد شركتك أن يتلقى قسما التسويق والهندسة فواتير وتقارير فوترة منفصلة من Azure. ماذا يجب أن تنشئ لكل قسم؟",
+      "options_ar": {
+        "A": "مجموعة موارد منفصلة",
+        "B": "اشتراكًا منفصلًا",
+        "C": "شبكة ظاهرية منفصلة",
+        "D": "منطقة توفر منفصلة"
+      },
+      "explanation_ar": "الاشتراك حدٌّ للفوترة: إذ يُصدر Azure تقارير فوترة وفواتير منفصلة لكل اشتراك. أما مجموعات الموارد فتنظّم الموارد لكنها لا تُصدر فواتير منفصلة."
     },
     {
       "uid": "az900-034",
@@ -513,7 +772,15 @@
       },
       "answer": ["C"],
       "explanation": "Management groups contain subscriptions, subscriptions contain resource groups, and resource groups contain resources. Settings such as policies and role assignments applied at a higher scope are inherited by the scopes below it.",
-      "reference": "https://learn.microsoft.com/en-us/azure/governance/management-groups/overview"
+      "reference": "https://learn.microsoft.com/en-us/azure/governance/management-groups/overview",
+      "question_ar": "ما الترتيب الصحيح للنطاقات التنظيمية في Azure، من الأوسع إلى الأضيق؟",
+      "options_ar": {
+        "A": "الاشتراكات > مجموعات الإدارة > مجموعات الموارد > الموارد",
+        "B": "مجموعات الموارد > الاشتراكات > مجموعات الإدارة > الموارد",
+        "C": "مجموعات الإدارة > الاشتراكات > مجموعات الموارد > الموارد",
+        "D": "مجموعات الإدارة > مجموعات الموارد > الاشتراكات > الموارد"
+      },
+      "explanation_ar": "تحتوي مجموعات الإدارة على الاشتراكات، وتحتوي الاشتراكات على مجموعات الموارد، وتحتوي مجموعات الموارد على الموارد. والإعدادات مثل النُّهج وتعيينات الأدوار المطبّقة على نطاق أعلى ترثها النطاقات التي تحته."
     },
     {
       "uid": "az900-035",
@@ -528,7 +795,15 @@
       },
       "answer": ["D"],
       "explanation": "Azure Virtual Desktop is a desktop and app virtualization service that runs in Azure and supports Windows 11 and Windows 10 Enterprise multi-session. Azure Bastion only provides secure RDP/SSH access to VMs for administrators.",
-      "reference": "https://learn.microsoft.com/en-us/azure/virtual-desktop/overview"
+      "reference": "https://learn.microsoft.com/en-us/azure/virtual-desktop/overview",
+      "question_ar": "تريد شركتك أن يصل الموظفون إلى سطح مكتب Windows كامل وتطبيقات الأعمال من أي جهاز، على أن تُستضاف أسطح المكتب في Azure ويتشارك عدة مستخدمين مضيفًا واحدًا يعمل بنظام Windows 11 متعدد الجلسات. ما الخدمة التي يجب أن تستخدمها؟",
+      "options_ar": {
+        "A": "Azure Bastion",
+        "B": "Azure App Service",
+        "C": "Azure Virtual Machine Scale Sets",
+        "D": "Azure Virtual Desktop"
+      },
+      "explanation_ar": "Azure Virtual Desktop خدمة لمحاكاة أسطح المكتب والتطبيقات افتراضيًا تعمل في Azure، وتدعم Windows 11 وWindows 10 Enterprise متعدد الجلسات. أما Azure Bastion فتوفر للمسؤولين فقط وصولًا آمنًا إلى الأجهزة الظاهرية عبر RDP/SSH."
     },
     {
       "uid": "az900-036",
@@ -543,7 +818,15 @@
       },
       "answer": ["B"],
       "explanation": "Virtual machine scale sets create and manage a group of identical, load-balanced VMs and can autoscale the instance count. An availability set improves resiliency but does not add or remove VMs automatically.",
-      "reference": "https://learn.microsoft.com/en-us/azure/virtual-machine-scale-sets/overview"
+      "reference": "https://learn.microsoft.com/en-us/azure/virtual-machine-scale-sets/overview",
+      "question_ar": "تحتاج إلى مجموعة من الأجهزة الظاهرية المتطابقة والموزَّع عليها التحميل، يزيد عددها أو ينقص تلقائيًا استجابةً للطلب أو وفق جدول زمني. ماذا يجب أن تستخدم؟",
+      "options_ar": {
+        "A": "مجموعة توفر (availability set)",
+        "B": "مجموعة توسيع الأجهزة الظاهرية (virtual machine scale set)",
+        "C": "Azure Container Instances",
+        "D": "مجموعة موارد"
+      },
+      "explanation_ar": "تنشئ مجموعات توسيع الأجهزة الظاهرية مجموعة من الأجهزة الظاهرية المتطابقة والموزَّع عليها التحميل وتديرها، ويمكنها توسيع عدد المثيلات تلقائيًا. أما مجموعة التوفر فتحسّن المرونة في مواجهة الأعطال لكنها لا تضيف أجهزة ظاهرية أو تزيلها تلقائيًا."
     },
     {
       "uid": "az900-037",
@@ -558,7 +841,15 @@
       },
       "answer": ["C"],
       "explanation": "An availability set spreads VMs across fault domains (separate racks, power, and network) and update domains (staggered maintenance) within a datacenter, and there is no charge for the availability set itself. Availability zones protect against a whole-datacenter failure.",
-      "reference": "https://learn.microsoft.com/en-us/training/paths/azure-fundamentals-describe-azure-architecture-services/"
+      "reference": "https://learn.microsoft.com/en-us/training/paths/azure-fundamentals-describe-azure-architecture-services/",
+      "question_ar": "تشغّل شركتك جهازين ظاهريين لتطبيق ما في مركز بيانات واحد. تحتاج إلى حماية التطبيق من عطل في الأجهزة على مستوى الحامل (rack) ومن الصيانة المخطط لها التي تعيد تشغيل الأجهزة المضيفة، ويجب ألا تضيف ميزة التجميع نفسها أي تكلفة. ماذا يجب أن تستخدم؟",
+      "options_ar": {
+        "A": "مناطق التوفر",
+        "B": "أزواج المناطق",
+        "C": "مجموعة توفر (availability set)",
+        "D": "Azure Site Recovery"
+      },
+      "explanation_ar": "توزّع مجموعة التوفر الأجهزة الظاهرية على مجالات الأعطال (fault domains) (حوامل وإمداد طاقة وشبكة منفصلة) ومجالات التحديث (update domains) (صيانة متعاقبة) داخل مركز البيانات، ولا توجد رسوم على مجموعة التوفر نفسها. أما مناطق التوفر فتحمي من تعطل مركز بيانات بأكمله."
     },
     {
       "uid": "az900-038",
@@ -573,7 +864,15 @@
       },
       "answer": ["A"],
       "explanation": "Azure Container Instances is a PaaS offering that runs a container directly, without managing VMs or an orchestrator. AKS is used when you need to orchestrate many containers.",
-      "reference": "https://learn.microsoft.com/en-us/azure/container-instances/container-instances-overview"
+      "reference": "https://learn.microsoft.com/en-us/azure/container-instances/container-instances-overview",
+      "question_ar": "يحتاج مطوّر إلى تشغيل حاوية واحدة في Azure بأسرع ما يمكن، دون توفير أجهزة ظاهرية أو اعتماد نظام أساسي لتنسيق الحاويات. ماذا يجب أن يستخدم المطوّر؟",
+      "options_ar": {
+        "A": "Azure Container Instances",
+        "B": "Azure Kubernetes Service (AKS)",
+        "C": "Azure Virtual Desktop",
+        "D": "Azure Virtual Machine Scale Sets"
+      },
+      "explanation_ar": "Azure Container Instances خدمة من نوع PaaS تشغّل الحاوية مباشرةً، دون إدارة أجهزة ظاهرية أو أداة تنسيق. أما AKS فتُستخدم عندما تحتاج إلى تنسيق عدد كبير من الحاويات."
     },
     {
       "uid": "az900-039",
@@ -588,7 +887,15 @@
       },
       "answer": ["D"],
       "explanation": "Azure Functions is an event-driven serverless compute service: code runs in response to triggers such as a new blob, and on a consumption plan you pay only for executions. VMs and App Service run continuously and bill while running.",
-      "reference": "https://learn.microsoft.com/en-us/azure/azure-functions/functions-overview"
+      "reference": "https://learn.microsoft.com/en-us/azure/azure-functions/functions-overview",
+      "question_ar": "تحتاج إلى تشغيل جزء صغير من التعليمات البرمجية في كل مرة يُحمَّل فيها ملف جديد إلى Azure Blob Storage. وتريد تجنّب إدارة الخوادم والدفع فقط عند تشغيل التعليمات البرمجية. ماذا يجب أن تستخدم؟",
+      "options_ar": {
+        "A": "Azure Virtual Machines",
+        "B": "Azure App Service",
+        "C": "Azure Kubernetes Service (AKS)",
+        "D": "Azure Functions"
+      },
+      "explanation_ar": "Azure Functions خدمة حوسبة بلا خادم قائمة على الأحداث: تعمل التعليمات البرمجية استجابةً لمشغّلات مثل وصول كائن blob جديد، وفي خطة الاستهلاك تدفع فقط مقابل عمليات التنفيذ. أما الأجهزة الظاهرية وApp Service فتعمل باستمرار وتُحتسب تكلفتها طوال فترة تشغيلها."
     },
     {
       "uid": "az900-040",
@@ -603,7 +910,15 @@
       },
       "answer": ["A"],
       "explanation": "Azure App Service is a PaaS service for hosting web apps, REST APIs, and mobile back ends, with autoscaling and deployment slots, while Azure manages the OS and infrastructure. Virtual machines would require you to manage the OS.",
-      "reference": "https://learn.microsoft.com/en-us/azure/app-service/overview"
+      "reference": "https://learn.microsoft.com/en-us/azure/app-service/overview",
+      "question_ar": "تريد شركتك استضافة تطبيق ويب وواجهة REST API مع توسع تلقائي مدمج وخانات نشر (deployment slots) ودعم للغات مثل .NET وJava وNode.js وPython، دون إدارة نظام التشغيل الأساسي. ما الخدمة التي يجب أن تستخدمها؟",
+      "options_ar": {
+        "A": "Azure App Service",
+        "B": "Azure Virtual Machines",
+        "C": "Azure Virtual Desktop",
+        "D": "Azure Data Box"
+      },
+      "explanation_ar": "Azure App Service خدمة من نوع PaaS لاستضافة تطبيقات الويب وواجهات REST API والواجهات الخلفية لتطبيقات الأجهزة المحمولة، مع التوسع التلقائي وخانات النشر، بينما يدير Azure نظام التشغيل والبنية التحتية. أما الأجهزة الظاهرية فتتطلب منك إدارة نظام التشغيل."
     },
     {
       "uid": "az900-041",
@@ -618,7 +933,15 @@
       },
       "answer": ["C"],
       "explanation": "ExpressRoute extends on-premises networks into Microsoft's cloud over a private connection through a connectivity provider, not the public internet. Site-to-site and point-to-site VPNs are encrypted but still travel over the internet.",
-      "reference": "https://learn.microsoft.com/en-us/azure/expressroute/expressroute-introduction"
+      "reference": "https://learn.microsoft.com/en-us/azure/expressroute/expressroute-introduction",
+      "question_ar": "تحتاج شركتك إلى اتصال خاص ومخصص من مركز بياناتها المحلي إلى Azure لا يمر عبر الإنترنت العام ويوفر زمن انتقال (latency) أكثر قابلية للتنبؤ. ماذا يجب أن تستخدم؟",
+      "options_ar": {
+        "A": "شبكة VPN من موقع إلى موقع (site-to-site)",
+        "B": "شبكة VPN من نقطة إلى موقع (point-to-site)",
+        "C": "Azure ExpressRoute",
+        "D": "تناظر الشبكات الظاهرية (Virtual network peering)"
+      },
+      "explanation_ar": "توسّع ExpressRoute الشبكات المحلية إلى سحابة Microsoft عبر اتصال خاص من خلال موفّر اتصال، وليس عبر الإنترنت العام. أما شبكات VPN من موقع إلى موقع ومن نقطة إلى موقع فهي مشفّرة لكنها لا تزال تمر عبر الإنترنت."
     },
     {
       "uid": "az900-042",
@@ -633,7 +956,15 @@
       },
       "answer": ["D"],
       "explanation": "A VPN gateway sends encrypted traffic between an Azure virtual network and an on-premises location over the public internet. ExpressRoute is a private connection that does not use the internet.",
-      "reference": "https://learn.microsoft.com/en-us/training/paths/azure-fundamentals-describe-azure-architecture-services/"
+      "reference": "https://learn.microsoft.com/en-us/training/paths/azure-fundamentals-describe-azure-architecture-services/",
+      "question_ar": "تحتاج إلى إرسال حركة مرور مشفّرة بين شبكتك المحلية وشبكة ظاهرية في Azure عبر الإنترنت العام. ما مورد Azure الذي يجب أن تنشره في الشبكة الظاهرية؟",
+      "options_ar": {
+        "A": "دائرة ExpressRoute",
+        "B": "منطقة Azure DNS",
+        "C": "نقطة نهاية خاصة (private endpoint)",
+        "D": "بوابة VPN (VPN gateway)"
+      },
+      "explanation_ar": "ترسل بوابة VPN حركة مرور مشفّرة بين شبكة Azure الظاهرية وموقع محلي عبر الإنترنت العام. أما ExpressRoute فهو اتصال خاص لا يستخدم الإنترنت."
     },
     {
       "uid": "az900-043",
@@ -648,7 +979,15 @@
       },
       "answer": ["B"],
       "explanation": "A private endpoint is a network interface with a private IP address from your virtual network that connects privately to a service such as Azure Storage through Azure Private Link. A public endpoint, even with firewall rules, is still reached at a public address.",
-      "reference": "https://learn.microsoft.com/en-us/azure/private-link/private-endpoint-overview"
+      "reference": "https://learn.microsoft.com/en-us/azure/private-link/private-endpoint-overview",
+      "question_ar": "يجب أن تصل الأجهزة الظاهرية في شبكة Azure ظاهرية إلى حساب Azure Storage عبر عنوان IP خاص من تلك الشبكة الظاهرية، بحيث لا تستخدم حركة المرور أبدًا العنوان العام لحساب التخزين. ماذا يجب أن تكوّن؟",
+      "options_ar": {
+        "A": "نقطة نهاية عامة مع قاعدة جدار حماية",
+        "B": "نقطة نهاية خاصة (private endpoint)",
+        "C": "بوابة VPN (VPN gateway)",
+        "D": "منطقة DNS عامة"
+      },
+      "explanation_ar": "نقطة النهاية الخاصة واجهة شبكة لها عنوان IP خاص من شبكتك الظاهرية، وتتصل اتصالًا خاصًا بخدمة مثل Azure Storage من خلال Azure Private Link. أما نقطة النهاية العامة، حتى مع قواعد جدار الحماية، فيظل الوصول إليها عبر عنوان عام."
     },
     {
       "uid": "az900-044",
@@ -663,7 +1002,15 @@
       },
       "answer": ["C"],
       "explanation": "Azure DNS hosts DNS domains on Azure infrastructure and lets you manage records with your Azure credentials, tools, and billing, for both public and private zones. You cannot buy a domain name through Azure DNS itself.",
-      "reference": "https://learn.microsoft.com/en-us/azure/dns/dns-overview"
+      "reference": "https://learn.microsoft.com/en-us/azure/dns/dns-overview",
+      "question_ar": "أي عبارة صحيحة بشأن Azure DNS؟",
+      "options_ar": {
+        "A": "تستخدم Azure DNS لشراء أسماء نطاقات جديدة وتسجيلها",
+        "B": "تدعم Azure DNS مناطق DNS الخاصة فقط",
+        "C": "تستضيف Azure DNS نطاقات DNS الخاصة بك، فتتمكن من إدارة السجلات باستخدام بيانات الاعتماد وواجهات API والفوترة نفسها التي تستخدمها لخدمات Azure الأخرى",
+        "D": "تتطلب Azure DNS منك نشر خوادم DNS على أجهزة ظاهرية"
+      },
+      "explanation_ar": "تستضيف Azure DNS نطاقات DNS على البنية التحتية لـ Azure وتتيح لك إدارة السجلات باستخدام بيانات اعتماد Azure وأدواته وفوترته، للمناطق العامة والخاصة على حد سواء. ولا يمكنك شراء اسم نطاق من خلال Azure DNS نفسها."
     },
     {
       "uid": "az900-045",
@@ -678,7 +1025,15 @@
       },
       "answer": ["D"],
       "explanation": "The archive tier has the lowest storage cost and is an offline tier: blobs must be rehydrated to an online tier, which can take hours, before they can be read. Hot, cool, and cold are online tiers with higher storage costs.",
-      "reference": "https://learn.microsoft.com/en-us/azure/storage/blobs/access-tiers-overview"
+      "reference": "https://learn.microsoft.com/en-us/azure/storage/blobs/access-tiers-overview",
+      "question_ar": "يجب أن تحتفظ شركتك بملفات التدقيق لمدة سبع سنوات. نادرًا جدًا ما تُقرأ هذه الملفات، وعند الحاجة إليها يكون وقت استرداد يبلغ عدة ساعات مقبولًا. تحتاج إلى أقل تكلفة تخزين ممكنة. ما مستوى الوصول (access tier) إلى blob الذي يجب أن تستخدمه؟",
+      "options_ar": {
+        "A": "Hot (الساخن)",
+        "B": "Cool (البارد)",
+        "C": "Cold (شديد البرودة)",
+        "D": "Archive (الأرشيف)"
+      },
+      "explanation_ar": "مستوى الأرشيف (Archive) هو الأقل تكلفة للتخزين، وهو مستوى غير متصل (offline): إذ يجب إعادة ترطيب (rehydrate) كائنات blob إلى مستوى متصل، وقد يستغرق ذلك ساعات، قبل التمكن من قراءتها. أما المستويات Hot وCool وCold فهي مستويات متصلة (online) بتكاليف تخزين أعلى."
     },
     {
       "uid": "az900-046",
@@ -693,7 +1048,15 @@
       },
       "answer": ["B"],
       "explanation": "The cool tier is an online tier for infrequently accessed data kept for at least 30 days. The cold tier targets a minimum of 90 days, and archive targets 180 days and is offline.",
-      "reference": "https://learn.microsoft.com/en-us/azure/storage/blobs/access-tiers-overview"
+      "reference": "https://learn.microsoft.com/en-us/azure/storage/blobs/access-tiers-overview",
+      "question_ar": "ما مستوى الوصول في Azure Blob Storage المخصص للبيانات التي يُوصل إليها بشكل غير متكرر، ويجب أن تكون متاحة فورًا، وتُخزَّن لمدة 30 يومًا على الأقل؟",
+      "options_ar": {
+        "A": "Hot (الساخن)",
+        "B": "Cool (البارد)",
+        "C": "Cold (شديد البرودة)",
+        "D": "Archive (الأرشيف)"
+      },
+      "explanation_ar": "مستوى Cool مستوى متصل للبيانات التي يُوصل إليها بشكل غير متكرر وتُحفظ لمدة 30 يومًا على الأقل. أما مستوى Cold فيستهدف حدًا أدنى قدره 90 يومًا، ومستوى Archive يستهدف 180 يومًا وهو غير متصل."
     },
     {
       "uid": "az900-047",
@@ -708,7 +1071,15 @@
       },
       "answer": ["D"],
       "explanation": "RA-GZRS replicates synchronously across three availability zones in the primary region, copies data to a secondary region, and allows read access to the secondary at all times. GZRS without RA only allows secondary reads after a failover, and GRS/RA-GRS use LRS rather than zones in the primary region.",
-      "reference": "https://learn.microsoft.com/en-us/azure/storage/common/storage-redundancy"
+      "reference": "https://learn.microsoft.com/en-us/azure/storage/common/storage-redundancy",
+      "question_ar": "تحتاج إلى حساب تخزين تُنسخ بياناته نسخًا متماثلًا عبر مناطق التوفر في المنطقة الأساسية وتُنسخ أيضًا إلى منطقة ثانوية، ويجب أن تتمكن التطبيقات من القراءة من المنطقة الثانوية في أي وقت. ما خيار التكرار (redundancy) الذي يجب أن تختاره؟",
+      "options_ar": {
+        "A": "التخزين المتكرر جغرافيًا (GRS)",
+        "B": "التخزين المتكرر جغرافيًا وعبر المناطق (GZRS)",
+        "C": "التخزين المتكرر جغرافيًا مع إمكانية القراءة (RA-GRS)",
+        "D": "التخزين المتكرر جغرافيًا وعبر المناطق مع إمكانية القراءة (RA-GZRS)"
+      },
+      "explanation_ar": "ينسخ RA-GZRS البيانات بشكل متزامن عبر ثلاث مناطق توفر في المنطقة الأساسية، وينسخها إلى منطقة ثانوية، ويتيح القراءة من المنطقة الثانوية في جميع الأوقات. أما GZRS من دون RA فلا يتيح القراءة من المنطقة الثانوية إلا بعد تجاوز الفشل (failover)، ويستخدم GRS/RA-GRS التخزين LRS بدلًا من مناطق التوفر في المنطقة الأساسية."
     },
     {
       "uid": "az900-048",
@@ -723,7 +1094,15 @@
       },
       "answer": ["A"],
       "explanation": "LRS replicates data three times within one datacenter in the primary region and is the least expensive option, but it does not protect against a datacenter-wide failure. ZRS spreads the copies across availability zones.",
-      "reference": "https://learn.microsoft.com/en-us/azure/storage/common/storage-redundancy"
+      "reference": "https://learn.microsoft.com/en-us/azure/storage/common/storage-redundancy",
+      "question_ar": "ما خيار التكرار في Azure Storage الأقل تكلفة، والذي يحتفظ بثلاث نسخ من البيانات داخل مركز بيانات واحد في المنطقة الأساسية؟",
+      "options_ar": {
+        "A": "التخزين المتكرر محليًا (LRS)",
+        "B": "التخزين المتكرر عبر المناطق (ZRS)",
+        "C": "التخزين المتكرر جغرافيًا (GRS)",
+        "D": "التخزين المتكرر جغرافيًا مع إمكانية القراءة (RA-GRS)"
+      },
+      "explanation_ar": "ينسخ LRS البيانات ثلاث مرات داخل مركز بيانات واحد في المنطقة الأساسية، وهو الخيار الأقل تكلفة، لكنه لا يحمي من تعطل مركز البيانات بأكمله. أما ZRS فيوزّع النسخ عبر مناطق التوفر."
     },
     {
       "uid": "az900-049",
@@ -738,7 +1117,15 @@
       },
       "answer": ["C"],
       "explanation": "Azure File Sync centralizes file shares in Azure Files and turns Windows Servers into fast local caches, with cloud tiering for less-used files. AzCopy is a one-time copy tool and does not keep servers in sync.",
-      "reference": "https://learn.microsoft.com/en-us/azure/storage/file-sync/file-sync-introduction"
+      "reference": "https://learn.microsoft.com/en-us/azure/storage/file-sync/file-sync-introduction",
+      "question_ar": "تستخدم فروع شركتك خوادم ملفات تعمل بنظام Windows. تريد أن تكون Azure Files النسخة المركزية من البيانات، بينما يحتفظ خادم كل فرع بذاكرة تخزين مؤقت محلية للملفات كثيرة الاستخدام لتسريع الوصول إليها. ماذا يجب أن تستخدم؟",
+      "options_ar": {
+        "A": "AzCopy",
+        "B": "Azure Migrate",
+        "C": "Azure File Sync",
+        "D": "Azure Data Box"
+      },
+      "explanation_ar": "تجعل Azure File Sync مشاركات الملفات مركزية في Azure Files، وتحوّل خوادم Windows Server إلى ذاكرات تخزين مؤقت محلية سريعة، مع ميزة التدرج السحابي (cloud tiering) للملفات الأقل استخدامًا. أما AzCopy فأداة نسخ لمرة واحدة ولا تُبقي الخوادم متزامنة."
     },
     {
       "uid": "az900-050",
@@ -753,7 +1140,15 @@
       },
       "answer": ["D"],
       "explanation": "Azure Data Box is a physical device that Microsoft ships to you; you copy data onto it and ship it back to be uploaded into Azure, which suits large transfers over limited bandwidth. AzCopy and Storage Explorer transfer over the network.",
-      "reference": "https://learn.microsoft.com/en-us/azure/databox/data-box-overview"
+      "reference": "https://learn.microsoft.com/en-us/azure/databox/data-box-overview",
+      "question_ar": "تحتاج شركتك إلى نقل 80 TB من البيانات المؤرشفة إلى Azure. اتصال الإنترنت في المكتب بطيء، وسيستغرق تحميل البيانات عدة أشهر. ماذا يجب أن تستخدم؟",
+      "options_ar": {
+        "A": "AzCopy",
+        "B": "Azure Storage Explorer",
+        "C": "Azure File Sync",
+        "D": "Azure Data Box"
+      },
+      "explanation_ar": "Azure Data Box جهاز مادي ترسله Microsoft إليك؛ فتنسخ البيانات عليه وتعيد شحنه ليتم تحميلها إلى Azure، وهو ما يناسب عمليات النقل الكبيرة عبر نطاق ترددي محدود. أما AzCopy وStorage Explorer فينقلان البيانات عبر الشبكة."
     },
     {
       "uid": "az900-051",
@@ -768,7 +1163,15 @@
       },
       "answer": ["A"],
       "explanation": "Azure Migrate is a central hub for discovering, assessing, and migrating on-premises servers, databases, and web apps to Azure. Azure Arc manages resources where they are rather than migrating them.",
-      "reference": "https://learn.microsoft.com/en-us/azure/migrate/migrate-services-overview"
+      "reference": "https://learn.microsoft.com/en-us/azure/migrate/migrate-services-overview",
+      "question_ar": "تريد شركتك مركزًا واحدًا لاكتشاف خوادمها وقواعد بياناتها وتطبيقات الويب المحلية، وتقييم جاهزيتها وتكلفتها التقديرية في Azure، ثم ترحيلها. ما الخدمة التي يجب أن تستخدمها؟",
+      "options_ar": {
+        "A": "Azure Migrate",
+        "B": "Azure Arc",
+        "C": "Azure Data Box",
+        "D": "Azure Advisor"
+      },
+      "explanation_ar": "Azure Migrate مركز رئيسي لاكتشاف الخوادم وقواعد البيانات وتطبيقات الويب المحلية وتقييمها وترحيلها إلى Azure. أما Azure Arc فتدير الموارد في أماكنها بدلًا من ترحيلها."
     },
     {
       "uid": "az900-052",
@@ -783,7 +1186,15 @@
       },
       "answer": ["C"],
       "explanation": "Microsoft Entra ID (formerly Azure Active Directory) is Microsoft's cloud identity and access management service, providing authentication, single sign-on, and MFA. Defender for Cloud is a security posture and workload protection service.",
-      "reference": "https://learn.microsoft.com/en-us/entra/fundamentals/what-is-entra"
+      "reference": "https://learn.microsoft.com/en-us/entra/fundamentals/what-is-entra",
+      "question_ar": "ما خدمة Azure التي توفر إدارة الهوية والوصول المستندة إلى السحابة، بما في ذلك تسجيل الدخول الأحادي إلى Microsoft 365 ومدخل Azure وآلاف تطبيقات SaaS؟",
+      "options_ar": {
+        "A": "Microsoft Defender for Cloud",
+        "B": "Azure Key Vault",
+        "C": "Microsoft Entra ID",
+        "D": "Microsoft Purview"
+      },
+      "explanation_ar": "Microsoft Entra ID (المعروفة سابقًا باسم Azure Active Directory) هي خدمة Microsoft السحابية لإدارة الهوية والوصول، وتوفر المصادقة وتسجيل الدخول الأحادي (SSO) والمصادقة متعددة العوامل (MFA). أما Defender for Cloud فهي خدمة لإدارة الوضع الأمني وحماية أحمال العمل."
     },
     {
       "uid": "az900-053",
@@ -798,7 +1209,15 @@
       },
       "answer": ["A"],
       "explanation": "Conditional Access evaluates signals such as user, location, device, and application during sign-in and then allows access, requires MFA, or blocks access. RBAC and Azure Policy govern what can be done with Azure resources, not how users sign in.",
-      "reference": "https://learn.microsoft.com/en-us/entra/identity/conditional-access/overview"
+      "reference": "https://learn.microsoft.com/en-us/entra/identity/conditional-access/overview",
+      "question_ar": "تحتاج إلى فرض المصادقة متعددة العوامل فقط عندما يسجّل المستخدمون الدخول من خارج شبكة الشركة، وإلى حظر عمليات تسجيل الدخول من دول معينة حظرًا تامًا. ماذا يجب أن تستخدم؟",
+      "options_ar": {
+        "A": "Microsoft Entra Conditional Access",
+        "B": "التحكم في الوصول المستند إلى الدور (RBAC) في Azure",
+        "C": "Azure Policy",
+        "D": "أقفال الموارد"
+      },
+      "explanation_ar": "تقيّم Conditional Access إشارات مثل المستخدم والموقع والجهاز والتطبيق أثناء تسجيل الدخول، ثم تسمح بالوصول أو تتطلب المصادقة متعددة العوامل أو تحظر الوصول. أما RBAC وAzure Policy فيحكمان ما يمكن فعله بموارد Azure، لا طريقة تسجيل دخول المستخدمين."
     },
     {
       "uid": "az900-054",
@@ -813,7 +1232,15 @@
       },
       "answer": ["B"],
       "explanation": "The identity and access layer controls access to infrastructure and change control using measures such as SSO, MFA, and auditing. The perimeter layer protects against network-based attacks such as DDoS.",
-      "reference": "https://learn.microsoft.com/en-us/training/paths/azure-fundamentals-describe-azure-architecture-services/"
+      "reference": "https://learn.microsoft.com/en-us/training/paths/azure-fundamentals-describe-azure-architecture-services/",
+      "question_ar": "في استراتيجية الدفاع المتعمق، ما الطبقة التي تركز على التحكم في الوصول إلى البنية التحتية والتحكم في التغيير، على سبيل المثال باستخدام تسجيل الدخول الأحادي والمصادقة متعددة العوامل وتدقيق أحداث تسجيل الدخول؟",
+      "options_ar": {
+        "A": "المحيط (Perimeter)",
+        "B": "الهوية والوصول",
+        "C": "الشبكة",
+        "D": "الحوسبة"
+      },
+      "explanation_ar": "تتحكم طبقة الهوية والوصول في الوصول إلى البنية التحتية والتحكم في التغيير باستخدام تدابير مثل SSO وMFA والتدقيق. أما طبقة المحيط فتحمي من الهجمات القائمة على الشبكة مثل هجمات حجب الخدمة الموزعة (DDoS)."
     },
     {
       "uid": "az900-055",
@@ -828,7 +1255,15 @@
       },
       "answer": ["B", "C"],
       "explanation": "ACI runs individual containers without managing VMs, and AKS is a managed Kubernetes service for orchestrating many containers. Containers share the host OS kernel rather than each carrying a full guest OS, and ACI has no Kubernetes control plane to manage.",
-      "reference": "https://learn.microsoft.com/en-us/azure/container-instances/container-instances-overview"
+      "reference": "https://learn.microsoft.com/en-us/azure/container-instances/container-instances-overview",
+      "question_ar": "يخطط المطورون لديك لنشر تطبيقات قائمة على الحاويات في Azure. ما العبارتان الصحيحتان؟ (اختر اثنتين.)",
+      "options_ar": {
+        "A": "تتضمن كل حاوية نظام تشغيل ضيفًا كاملًا خاصًا بها، تمامًا مثل الجهاز الظاهري",
+        "B": "تشغّل Azure Container Instances الحاويات دون أن تدير أنت أجهزة ظاهرية",
+        "C": "Azure Kubernetes Service (AKS) خدمة مُدارة لتنسيق الحاويات",
+        "D": "تتطلب Azure Container Instances منك إدارة مستوى تحكم Kubernetes"
+      },
+      "explanation_ar": "تشغّل ACI حاويات فردية دون إدارة أجهزة ظاهرية، وAKS خدمة Kubernetes مُدارة لتنسيق عدد كبير من الحاويات. وتتشارك الحاويات نواة نظام التشغيل المضيف بدلًا من أن تحمل كل منها نظام تشغيل ضيفًا كاملًا، ولا يوجد في ACI مستوى تحكم Kubernetes يلزم إدارته."
     },
     {
       "uid": "az900-056",
@@ -843,7 +1278,15 @@
       },
       "answer": ["B", "C", "D"],
       "explanation": "Hot, cool, and cold are online tiers whose data can be read immediately. Archive is an offline tier, so its blobs must be rehydrated to an online tier before they can be read.",
-      "reference": "https://learn.microsoft.com/en-us/azure/storage/blobs/access-tiers-overview"
+      "reference": "https://learn.microsoft.com/en-us/azure/storage/blobs/access-tiers-overview",
+      "question_ar": "ما مستويات الوصول الثلاثة في Azure Blob Storage التي تُعدّ مستويات متصلة (online)، حيث يمكن قراءة البيانات دون إعادة ترطيبها (rehydrate) أولًا؟ (اختر ثلاث إجابات.)",
+      "options_ar": {
+        "A": "Archive (الأرشيف)",
+        "B": "Hot (الساخن)",
+        "C": "Cool (البارد)",
+        "D": "Cold (شديد البرودة)"
+      },
+      "explanation_ar": "المستويات Hot وCool وCold مستويات متصلة يمكن قراءة بياناتها فورًا. أما Archive فمستوى غير متصل، لذا يجب إعادة ترطيب كائنات blob فيه إلى مستوى متصل قبل التمكن من قراءتها."
     },
     {
       "uid": "az900-057",
@@ -858,7 +1301,15 @@
       },
       "answer": ["C", "D"],
       "explanation": "GRS and GZRS both replicate data asynchronously to a secondary region. LRS keeps copies in a single datacenter and ZRS spreads them across zones, but both stay within the primary region.",
-      "reference": "https://learn.microsoft.com/en-us/azure/storage/common/storage-redundancy"
+      "reference": "https://learn.microsoft.com/en-us/azure/storage/common/storage-redundancy",
+      "question_ar": "ما خيارا التكرار في Azure Storage اللذان ينسخان البيانات إلى منطقة ثانوية؟ (اختر اثنتين.)",
+      "options_ar": {
+        "A": "التخزين المتكرر محليًا (LRS)",
+        "B": "التخزين المتكرر عبر المناطق (ZRS)",
+        "C": "التخزين المتكرر جغرافيًا (GRS)",
+        "D": "التخزين المتكرر جغرافيًا وعبر المناطق (GZRS)"
+      },
+      "explanation_ar": "ينسخ كلٌّ من GRS وGZRS البيانات بشكل غير متزامن إلى منطقة ثانوية. أما LRS فيحتفظ بالنسخ في مركز بيانات واحد، ويوزّعها ZRS عبر مناطق التوفر، لكن كليهما يبقى ضمن المنطقة الأساسية."
     },
     {
       "uid": "az900-058",
@@ -873,7 +1324,15 @@
       },
       "answer": ["A", "B"],
       "explanation": "AzCopy is a command-line utility and Azure Storage Explorer is a graphical app for Windows, macOS, and Linux; both transfer data to and from storage accounts over the network. Data Box is an offline, shipped device, and Advisor gives recommendations.",
-      "reference": "https://learn.microsoft.com/en-us/training/paths/azure-fundamentals-describe-azure-architecture-services/"
+      "reference": "https://learn.microsoft.com/en-us/training/paths/azure-fundamentals-describe-azure-architecture-services/",
+      "question_ar": "تحتاج إلى نسخ ملفات من محطة عمل محلية إلى Azure Blob Storage عبر الشبكة. ما الأداتان اللتان يمكنك استخدامهما؟ (اختر اثنتين.)",
+      "options_ar": {
+        "A": "AzCopy",
+        "B": "Azure Storage Explorer",
+        "C": "Azure Data Box",
+        "D": "Azure Advisor"
+      },
+      "explanation_ar": "AzCopy أداة تعمل من سطر الأوامر، وAzure Storage Explorer تطبيق رسومي لأنظمة Windows وmacOS وLinux؛ وكلتاهما تنقلان البيانات من حسابات التخزين وإليها عبر الشبكة. أما Data Box فجهاز يُشحن للنقل دون اتصال، وAdvisor يقدّم التوصيات."
     },
     {
       "uid": "az900-059",
@@ -889,7 +1348,16 @@
       },
       "answer": ["B", "D", "E"],
       "explanation": "Windows Hello for Business, FIDO2 security keys/passkeys, and the Microsoft Authenticator app are passwordless methods in Microsoft Entra ID. Security questions are only a self-service password reset option, and password hash synchronization is a hybrid identity sync method, not a sign-in method.",
-      "reference": "https://learn.microsoft.com/en-us/training/paths/azure-fundamentals-describe-azure-architecture-services/"
+      "reference": "https://learn.microsoft.com/en-us/training/paths/azure-fundamentals-describe-azure-architecture-services/",
+      "question_ar": "تريد شركتك الاستغناء عن كلمات المرور في عمليات تسجيل دخول الموظفين. ما طرق المصادقة الثلاث بدون كلمة مرور التي يدعمها Microsoft Entra ID؟ (اختر ثلاث إجابات.)",
+      "options_ar": {
+        "A": "أسئلة الأمان",
+        "B": "Windows Hello for Business",
+        "C": "مزامنة تجزئة كلمات المرور (Password hash synchronization)",
+        "D": "مفاتيح أمان FIDO2 (مفاتيح المرور passkeys)",
+        "E": "Microsoft Authenticator"
+      },
+      "explanation_ar": "تُعدّ Windows Hello for Business ومفاتيح أمان FIDO2/مفاتيح المرور وتطبيق Microsoft Authenticator طرقًا بدون كلمة مرور في Microsoft Entra ID. أما أسئلة الأمان فهي مجرد خيار لإعادة تعيين كلمة المرور بالخدمة الذاتية، ومزامنة تجزئة كلمات المرور طريقة لمزامنة الهوية المختلطة وليست طريقة لتسجيل الدخول."
     },
     {
       "uid": "az900-060",
@@ -905,7 +1373,16 @@
       },
       "answer": ["A", "C", "D"],
       "explanation": "Zero Trust is built on verify explicitly, use least privilege access, and assume breach. It rejects the idea that anything inside the network perimeter is automatically trusted.",
-      "reference": "https://learn.microsoft.com/en-us/security/zero-trust/zero-trust-overview"
+      "reference": "https://learn.microsoft.com/en-us/security/zero-trust/zero-trust-overview",
+      "question_ar": "يعتمد فريق الأمان لديك نموذج الثقة المعدومة (Zero Trust). ما المبادئ التوجيهية الثلاثة للثقة المعدومة؟ (اختر ثلاث إجابات.)",
+      "options_ar": {
+        "A": "التحقق بشكل صريح",
+        "B": "الوثوق بأي جهاز متصل بشبكة الشركة",
+        "C": "استخدام الوصول بأقل الامتيازات",
+        "D": "افتراض حدوث الاختراق",
+        "E": "الاعتماد على جدار الحماية المحيطي بوصفه عنصر التحكم الأمني الرئيسي"
+      },
+      "explanation_ar": "تقوم الثقة المعدومة على التحقق بشكل صريح، واستخدام الوصول بأقل الامتيازات، وافتراض حدوث الاختراق. وهي ترفض فكرة أن كل ما هو داخل محيط الشبكة موثوق به تلقائيًا."
     },
     {
       "uid": "az900-061",
@@ -920,7 +1397,15 @@
       },
       "answer": ["B", "D"],
       "explanation": "Virtual network peering connects VNets directly over the Microsoft backbone, and VPN gateways can also link VNets with a VNet-to-VNet connection. A public DNS zone only resolves names, and a resource lock only prevents changes.",
-      "reference": "https://learn.microsoft.com/en-us/azure/virtual-network/virtual-network-peering-overview"
+      "reference": "https://learn.microsoft.com/en-us/azure/virtual-network/virtual-network-peering-overview",
+      "question_ar": "لديك شبكتان ظاهريتان في Azure، ويجب أن تتواصل الأجهزة الظاهرية في كل منهما مع بعضها باستخدام عناوين IP خاصة. ما الخياران اللذان يمكنك استخدامهما؟ (اختر اثنتين.)",
+      "options_ar": {
+        "A": "منطقة Azure DNS عامة",
+        "B": "تناظر الشبكات الظاهرية (Virtual network peering)",
+        "C": "قفل مورد",
+        "D": "بوابات VPN مكوَّنة لاتصال من شبكة ظاهرية إلى شبكة ظاهرية (VNet-to-VNet)"
+      },
+      "explanation_ar": "يربط تناظر الشبكات الظاهرية الشبكات الظاهرية مباشرةً عبر الشبكة الأساسية لـ Microsoft، ويمكن لبوابات VPN أيضًا ربط الشبكات الظاهرية باتصال VNet-to-VNet. أما منطقة DNS العامة فتقتصر على تحليل الأسماء، وقفل المورد يقتصر على منع التغييرات."
     },
     {
       "uid": "az900-062",
@@ -934,7 +1419,13 @@
       "answer": ["A"],
       "shuffle": false,
       "explanation": "Yes. Microsoft Entra Domain Services is a managed service that provides traditional domain features for legacy applications while Microsoft runs the domain controllers.",
-      "reference": "https://learn.microsoft.com/en-us/training/paths/azure-fundamentals-describe-azure-architecture-services/"
+      "reference": "https://learn.microsoft.com/en-us/training/paths/azure-fundamentals-describe-azure-architecture-services/",
+      "question_ar": "العبارة: توفر Microsoft Entra Domain Services خدمات مجال مُدارة مثل ضم الأجهزة إلى المجال ونهج المجموعة (Group Policy) وLDAP ومصادقة Kerberos/NTLM، دون الحاجة إلى نشر وحدات التحكم بالمجال (domain controllers) أو إدارتها. هل هذه العبارة صحيحة؟",
+      "options_ar": {
+        "A": "نعم",
+        "B": "لا"
+      },
+      "explanation_ar": "نعم. Microsoft Entra Domain Services خدمة مُدارة توفر ميزات المجال التقليدية للتطبيقات القديمة بينما تشغّل Microsoft وحدات التحكم بالمجال."
     },
     {
       "uid": "az900-063",
@@ -948,7 +1439,13 @@
       "answer": ["B"],
       "shuffle": false,
       "explanation": "No. With Microsoft Entra External ID B2B collaboration, partner users are invited as guests and sign in with their own existing identities, so you don't manage passwords for them.",
-      "reference": "https://learn.microsoft.com/en-us/training/paths/azure-fundamentals-describe-azure-architecture-services/"
+      "reference": "https://learn.microsoft.com/en-us/training/paths/azure-fundamentals-describe-azure-architecture-services/",
+      "question_ar": "العبارة: للسماح للمستخدمين من شركة شريكة بالوصول إلى تطبيقات مؤسستك، يجب أن تنشئ حسابًا جديدًا بكلمة مرور في مستأجر Microsoft Entra الخاص بك لكل مستخدم من الشريك. هل هذه العبارة صحيحة؟",
+      "options_ar": {
+        "A": "نعم",
+        "B": "لا"
+      },
+      "explanation_ar": "لا. مع التعاون بين الشركات (B2B) في Microsoft Entra External ID، يُدعى مستخدمو الشريك بصفتهم ضيوفًا ويسجّلون الدخول بهوياتهم الحالية، فلا تدير كلمات المرور الخاصة بهم."
     },
     {
       "uid": "az900-064",
@@ -962,7 +1459,13 @@
       "answer": ["A"],
       "shuffle": false,
       "explanation": "Yes. A resource group's location only determines where its metadata is stored; the resources inside it can be in other regions.",
-      "reference": "https://learn.microsoft.com/en-us/training/paths/azure-fundamentals-describe-azure-architecture-services/"
+      "reference": "https://learn.microsoft.com/en-us/training/paths/azure-fundamentals-describe-azure-architecture-services/",
+      "question_ar": "العبارة: يمكن أن تحتوي مجموعة موارد واحدة في Azure على موارد منشورة في مناطق Azure مختلفة. هل هذه العبارة صحيحة؟",
+      "options_ar": {
+        "A": "نعم",
+        "B": "لا"
+      },
+      "explanation_ar": "نعم. لا يحدد موقع مجموعة الموارد إلا مكان تخزين بياناتها الوصفية؛ ويمكن أن تكون الموارد التي بداخلها في مناطق أخرى."
     },
     {
       "uid": "az900-065",
@@ -976,7 +1479,13 @@
       "answer": ["B"],
       "shuffle": false,
       "explanation": "No. An availability set protects against rack and maintenance failures within a single datacenter. To survive the loss of a datacenter, deploy the VMs across availability zones (or regions).",
-      "reference": "https://learn.microsoft.com/en-us/training/paths/azure-fundamentals-describe-azure-architecture-services/"
+      "reference": "https://learn.microsoft.com/en-us/training/paths/azure-fundamentals-describe-azure-architecture-services/",
+      "question_ar": "يجب أن تحافظ شركتك على تشغيل تطبيق قائم على الأجهزة الظاهرية حتى لو تعطل مركز بيانات Azure بأكمله. الحل: تنشر جهازين ظاهريين في مجموعة توفر (availability set). هل يحقق هذا الهدف؟",
+      "options_ar": {
+        "A": "نعم",
+        "B": "لا"
+      },
+      "explanation_ar": "لا. تحمي مجموعة التوفر من أعطال الحوامل والصيانة داخل مركز بيانات واحد. وللصمود أمام فقدان مركز بيانات، انشر الأجهزة الظاهرية عبر مناطق التوفر (أو عبر المناطق)."
     },
     {
       "uid": "az900-066",
@@ -990,7 +1499,13 @@
       "answer": ["A"],
       "shuffle": false,
       "explanation": "Yes. Defender for Cloud is a cloud-native application protection platform that covers Azure, on-premises machines (for example through Azure Arc), and connected AWS and Google Cloud environments, with a secure score and recommendations.",
-      "reference": "https://learn.microsoft.com/en-us/azure/defender-for-cloud/defender-for-cloud-introduction"
+      "reference": "https://learn.microsoft.com/en-us/azure/defender-for-cloud/defender-for-cloud-introduction",
+      "question_ar": "العبارة: يمكن لـ Microsoft Defender for Cloud تقييم الوضع الأمني وتقديم توصيات للموارد الموجودة في Azure وفي مراكز البيانات المحلية وفي سحابات أخرى مثل AWS وGoogle Cloud. هل هذه العبارة صحيحة؟",
+      "options_ar": {
+        "A": "نعم",
+        "B": "لا"
+      },
+      "explanation_ar": "نعم. Defender for Cloud نظام أساسي لحماية التطبيقات السحابية الأصلية يغطي Azure والأجهزة المحلية (على سبيل المثال من خلال Azure Arc) وبيئات AWS وGoogle Cloud المتصلة، مع درجة أمان (secure score) وتوصيات."
     },
     {
       "uid": "az900-067",
@@ -1005,7 +1520,15 @@
       },
       "answer": ["A"],
       "explanation": "The Pricing calculator estimates the cost of Azure services you plan to deploy. Cost Management analyzes the cost of resources that are already running.",
-      "reference": "https://learn.microsoft.com/en-us/training/paths/describe-azure-management-governance/"
+      "reference": "https://learn.microsoft.com/en-us/training/paths/describe-azure-management-governance/",
+      "question_ar": "قبل نشر أي شيء، تحتاج إلى تقدير التكلفة الشهرية لحل مخطط له يتضمن ثلاثة أجهزة ظاهرية وحساب تخزين وبوابة VPN. ما الأداة التي يجب أن تستخدمها؟",
+      "options_ar": {
+        "A": "Azure Pricing calculator",
+        "B": "Microsoft Cost Management",
+        "C": "Azure Advisor",
+        "D": "Azure Service Health"
+      },
+      "explanation_ar": "تقدّر Pricing calculator تكلفة خدمات Azure التي تخطط لنشرها. أما Cost Management فتحلل تكلفة الموارد التي تعمل بالفعل."
     },
     {
       "uid": "az900-068",
@@ -1020,7 +1543,15 @@
       },
       "answer": ["B"],
       "explanation": "Budgets in Microsoft Cost Management let you set a spending threshold and send alerts when actual or forecasted costs reach defined percentages. Service Health alerts are about Azure service incidents, not spending.",
-      "reference": "https://learn.microsoft.com/en-us/azure/cost-management-billing/costs/tutorial-acm-create-budgets"
+      "reference": "https://learn.microsoft.com/en-us/azure/cost-management-billing/costs/tutorial-acm-create-budgets",
+      "question_ar": "تحتاج إلى تلقي إشعار بالبريد الإلكتروني عندما يصل الإنفاق الفعلي لاشتراك ما إلى 80 بالمائة من حد إنفاق شهري تحدده. ماذا يجب أن تكوّن؟",
+      "options_ar": {
+        "A": "توصية من Azure Advisor",
+        "B": "ميزانية (budget) في Microsoft Cost Management",
+        "C": "تقديرًا في Azure Pricing calculator",
+        "D": "تنبيهًا من Azure Service Health"
+      },
+      "explanation_ar": "تتيح لك الميزانيات في Microsoft Cost Management تعيين حد للإنفاق وإرسال تنبيهات عندما تصل التكاليف الفعلية أو المتوقعة إلى نسب مئوية محددة. أما تنبيهات Service Health فتتعلق بحوادث خدمات Azure، لا بالإنفاق."
     },
     {
       "uid": "az900-069",
@@ -1035,7 +1566,15 @@
       },
       "answer": ["C"],
       "explanation": "Azure prices can vary by region because of differences in local costs such as power, land, and taxes. Tags, resource group names, and management groups have no effect on the price of a resource.",
-      "reference": "https://learn.microsoft.com/en-us/training/paths/describe-azure-management-governance/"
+      "reference": "https://learn.microsoft.com/en-us/training/paths/describe-azure-management-governance/",
+      "question_ar": "تنشر شركتك حجم الجهاز الظاهري نفسه، بالتكوين نفسه، في منطقتين مختلفتين من Azure، وتلاحظ أن السعر بالساعة يختلف. ما الذي يفسر هذا الاختلاف؟",
+      "options_ar": {
+        "A": "العلامات (tags) المطبّقة على كل جهاز ظاهري",
+        "B": "اسم مجموعة الموارد",
+        "C": "منطقة Azure التي يُنشر فيها كل جهاز ظاهري",
+        "D": "مجموعة الإدارة التي تحتوي على الاشتراك"
+      },
+      "explanation_ar": "قد تختلف أسعار Azure باختلاف المنطقة بسبب الفروق في التكاليف المحلية مثل الطاقة والأراضي والضرائب. أما العلامات وأسماء مجموعات الموارد ومجموعات الإدارة فلا تأثير لها على سعر المورد."
     },
     {
       "uid": "az900-070",
@@ -1050,7 +1589,15 @@
       },
       "answer": ["D"],
       "explanation": "Inbound (ingress) data transfer into Azure datacenters is free. Outbound (egress) data transfer, including between regions, is generally charged.",
-      "reference": "https://learn.microsoft.com/en-us/training/paths/describe-azure-management-governance/"
+      "reference": "https://learn.microsoft.com/en-us/training/paths/describe-azure-management-governance/",
+      "question_ar": "عند مراجعة رسوم النطاق الترددي، ما نوع نقل البيانات الذي يكون مجانيًا عادةً في Azure؟",
+      "options_ar": {
+        "A": "نقل البيانات الصادر من Azure إلى الإنترنت",
+        "B": "نقل البيانات بين منطقتين من مناطق Azure",
+        "C": "نقل البيانات الصادر من Azure إلى شبكة محلية",
+        "D": "نقل البيانات الوارد إلى مراكز بيانات Azure"
+      },
+      "explanation_ar": "نقل البيانات الوارد (ingress) إلى مراكز بيانات Azure مجاني. أما نقل البيانات الصادر (egress)، بما في ذلك النقل بين المناطق، فيُحتسب عليه رسوم بشكل عام."
     },
     {
       "uid": "az900-071",
@@ -1065,7 +1612,15 @@
       },
       "answer": ["A"],
       "explanation": "Azure Reservations give a discount for committing to a one-year or three-year term, which suits steady, always-on workloads. Spot VMs are cheaper but can be evicted when Azure needs the capacity.",
-      "reference": "https://learn.microsoft.com/en-us/training/paths/describe-azure-management-governance/"
+      "reference": "https://learn.microsoft.com/en-us/training/paths/describe-azure-management-governance/",
+      "question_ar": "تشغّل شركتك مجموعة من الأجهزة الظاهرية على مدار 24 ساعة يوميًا باستخدام ثابت ويمكن التنبؤ به، وتتوقع الاحتفاظ بها طوال السنوات الثلاث القادمة. تحتاج إلى خفض تكلفة الحوسبة لهذه الأجهزة بشكل كبير دون التعرض لخطر إخلاء (evict) الأجهزة الظاهرية. ماذا يجب أن تستخدم؟",
+      "options_ar": {
+        "A": "Azure Reservations",
+        "B": "Azure Spot Virtual Machines",
+        "C": "التسعير بنظام الدفع حسب الاستخدام (Pay-as-you-go)",
+        "D": "نقل الأجهزة الظاهرية إلى مجموعة موارد جديدة"
+      },
+      "explanation_ar": "تمنح Azure Reservations خصمًا مقابل الالتزام بمدة سنة واحدة أو ثلاث سنوات، وهو ما يناسب أحمال العمل الثابتة التي تعمل دائمًا. أما أجهزة Spot الظاهرية فأرخص لكن يمكن إخلاؤها عندما يحتاج Azure إلى السعة."
     },
     {
       "uid": "az900-072",
@@ -1080,7 +1635,15 @@
       },
       "answer": ["B"],
       "explanation": "Tags are name-value pairs applied to resources, resource groups, and subscriptions, and Cost Management can group and filter costs by tag. Resource locks only prevent deletion or modification.",
-      "reference": "https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/tag-resources"
+      "reference": "https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/tag-resources",
+      "question_ar": "يريد فريق المالية لديك وسم كل مورد في Azure بمركز التكلفة الخاص به، بحيث يمكن تجميع التكاليف وتصفيتها حسب مركز التكلفة في تقارير التكاليف. ماذا يجب أن تستخدم؟",
+      "options_ar": {
+        "A": "أقفال الموارد",
+        "B": "العلامات (tags)",
+        "C": "Azure Advisor",
+        "D": "Azure Service Health"
+      },
+      "explanation_ar": "العلامات أزواج من الاسم والقيمة تُطبَّق على الموارد ومجموعات الموارد والاشتراكات، ويمكن لـ Cost Management تجميع التكاليف وتصفيتها حسب العلامة. أما أقفال الموارد فتقتصر على منع الحذف أو التعديل."
     },
     {
       "uid": "az900-073",
@@ -1095,7 +1658,15 @@
       },
       "answer": ["C"],
       "explanation": "Azure Policy enforces rules on resource properties, such as allowed locations, and can deny noncompliant deployments. RBAC controls who can act, not which properties a resource may have.",
-      "reference": "https://learn.microsoft.com/en-us/azure/governance/policy/overview"
+      "reference": "https://learn.microsoft.com/en-us/azure/governance/policy/overview",
+      "question_ar": "تنص سياسة الشركة على أنه لا يجوز إنشاء موارد Azure إلا في منطقتَي West Europe وNorth Europe. تحتاج إلى فرض ذلك بحيث تُرفض عمليات النشر إلى أي منطقة أخرى. ماذا يجب أن تستخدم؟",
+      "options_ar": {
+        "A": "التحكم في الوصول المستند إلى الدور (RBAC) في Azure",
+        "B": "قفل مورد",
+        "C": "Azure Policy",
+        "D": "Microsoft Purview"
+      },
+      "explanation_ar": "تفرض Azure Policy قواعد على خصائص الموارد، مثل المواقع المسموح بها، ويمكنها رفض عمليات النشر غير المتوافقة. أما RBAC فيتحكم في من يمكنه تنفيذ الإجراءات، لا في الخصائص التي يمكن أن يتخذها المورد."
     },
     {
       "uid": "az900-074",
@@ -1110,7 +1681,15 @@
       },
       "answer": ["D"],
       "explanation": "A Delete (CanNotDelete) lock lets authorized users read and modify a resource but blocks deletion. A ReadOnly lock would also block changes, which is not what you want.",
-      "reference": "https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/lock-resources"
+      "reference": "https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/lock-resources",
+      "question_ar": "تحتاج إلى منع أي شخص من حذف قاعدة بيانات Azure SQL إنتاجية عن طريق الخطأ، مع السماح في الوقت نفسه للمسؤولين بتغيير إعداداتها. ماذا يجب أن تطبّق؟",
+      "options_ar": {
+        "A": "قفل مورد من نوع ReadOnly",
+        "B": "الدور Reader لجميع المسؤولين",
+        "C": "علامة باسم environment=production",
+        "D": "قفل مورد من نوع Delete (CanNotDelete)"
+      },
+      "explanation_ar": "يتيح قفل Delete (CanNotDelete) للمستخدمين المصرّح لهم قراءة المورد وتعديله لكنه يمنع حذفه. أما قفل ReadOnly فيمنع التغييرات أيضًا، وهذا ليس ما تريده."
     },
     {
       "uid": "az900-075",
@@ -1125,7 +1704,15 @@
       },
       "answer": ["A"],
       "explanation": "A management group tree supports up to six levels of depth, excluding the root level and the subscription level.",
-      "reference": "https://learn.microsoft.com/en-us/azure/governance/management-groups/overview"
+      "reference": "https://learn.microsoft.com/en-us/azure/governance/management-groups/overview",
+      "question_ar": "تصمم شركتك تسلسلًا هرميًا لمجموعات الإدارة. كم عدد مستويات مجموعات الإدارة التي يمكن أن تدعمها الشجرة، دون احتساب المستوى الجذر أو مستوى الاشتراك؟",
+      "options_ar": {
+        "A": "ستة",
+        "B": "ثلاثة",
+        "C": "عشرة",
+        "D": "غير محدود"
+      },
+      "explanation_ar": "تدعم شجرة مجموعات الإدارة عمقًا يصل إلى ستة مستويات، باستثناء المستوى الجذر ومستوى الاشتراك."
     },
     {
       "uid": "az900-076",
@@ -1140,7 +1727,15 @@
       },
       "answer": ["C"],
       "explanation": "Azure RBAC grants specific permissions to users or groups at a chosen scope, so a role assignment on the resource group limits the help desk to that group. Azure Policy controls resource properties, not user permissions.",
-      "reference": "https://learn.microsoft.com/en-us/azure/role-based-access-control/overview"
+      "reference": "https://learn.microsoft.com/en-us/azure/role-based-access-control/overview",
+      "question_ar": "يجب أن يتمكن فريق مكتب المساعدة من تشغيل الأجهزة الظاهرية وإيقافها وإعادة تشغيلها في مجموعة موارد واحدة، ويجب ألا يتمكن من إدارة أي موارد أخرى. ماذا يجب أن تستخدم؟",
+      "options_ar": {
+        "A": "تعيين نهج من Azure Policy",
+        "B": "قفل مورد",
+        "C": "تعيين دور ضمن التحكم في الوصول المستند إلى الدور (RBAC) في Azure على نطاق مجموعة الموارد",
+        "D": "مجموعة إدارة جديدة"
+      },
+      "explanation_ar": "يمنح Azure RBAC أذونات محددة للمستخدمين أو المجموعات على نطاق تختاره، لذا فإن تعيين دور على مجموعة الموارد يقصر صلاحيات مكتب المساعدة على تلك المجموعة. أما Azure Policy فتتحكم في خصائص الموارد، لا في أذونات المستخدمين."
     },
     {
       "uid": "az900-077",
@@ -1155,7 +1750,15 @@
       },
       "answer": ["B"],
       "explanation": "Azure RBAC role assignments are inherited by child scopes, so Reader at the subscription applies to every resource group and resource in it, existing or new.",
-      "reference": "https://learn.microsoft.com/en-us/azure/role-based-access-control/overview"
+      "reference": "https://learn.microsoft.com/en-us/azure/role-based-access-control/overview",
+      "question_ar": "تعيّن لمستخدم الدور Reader على نطاق الاشتراك. ما صلاحية الوصول التي يملكها المستخدم إلى مجموعات الموارد في ذلك الاشتراك؟",
+      "options_ar": {
+        "A": "لا وصول، إلى أن يُعيَّن دور على كل مجموعة موارد",
+        "B": "صلاحية القراءة لجميع مجموعات الموارد والموارد في الاشتراك، موروثة من الاشتراك",
+        "C": "صلاحية Contributor لجميع مجموعات الموارد",
+        "D": "صلاحية القراءة فقط لمجموعات الموارد التي تُنشأ بعد التعيين"
+      },
+      "explanation_ar": "ترث النطاقات الفرعية تعيينات الأدوار في Azure RBAC، لذا ينطبق الدور Reader على مستوى الاشتراك على كل مجموعة موارد وكل مورد فيه، الموجودة منها والجديدة."
     },
     {
       "uid": "az900-078",
@@ -1170,7 +1773,15 @@
       },
       "answer": ["D"],
       "explanation": "Microsoft Purview is a family of data governance, risk, and compliance solutions that maps and classifies data across on-premises, multicloud, and SaaS sources. Defender for Cloud focuses on security posture and threat protection.",
-      "reference": "https://learn.microsoft.com/en-us/training/paths/describe-azure-management-governance/"
+      "reference": "https://learn.microsoft.com/en-us/training/paths/describe-azure-management-governance/",
+      "question_ar": "تحتاج شركتك إلى خدمة موحّدة لاكتشاف البيانات وتصنيفها وحوكمتها عبر المصادر المحلية ومتعددة السحابات ومصادر SaaS، ولتتبع تسلسل البيانات (data lineage). ما الخدمة التي يجب أن تستخدمها؟",
+      "options_ar": {
+        "A": "Microsoft Defender for Cloud",
+        "B": "Azure Policy",
+        "C": "Azure Monitor",
+        "D": "Microsoft Purview"
+      },
+      "explanation_ar": "Microsoft Purview مجموعة من حلول حوكمة البيانات والمخاطر والامتثال، تُعيّن البيانات وتصنّفها عبر المصادر المحلية ومتعددة السحابات ومصادر SaaS. أما Defender for Cloud فيركز على الوضع الأمني والحماية من التهديدات."
     },
     {
       "uid": "az900-079",
@@ -1185,7 +1796,15 @@
       },
       "answer": ["B"],
       "explanation": "The Service Trust Portal provides Microsoft's audit reports, certifications, and compliance documents for its cloud services. Advisor and Service Health report on your own resources, not on Microsoft's compliance audits.",
-      "reference": "https://learn.microsoft.com/en-us/training/paths/describe-azure-management-governance/"
+      "reference": "https://learn.microsoft.com/en-us/training/paths/describe-azure-management-governance/",
+      "question_ar": "يطلب مدقق تقارير التدقيق المستقلة الخاصة بـ Microsoft لـ Azure، مثل شهادات ISO 27001 وتقارير SOC. من أين يجب أن تحصل عليها؟",
+      "options_ar": {
+        "A": "Azure Advisor",
+        "B": "Service Trust Portal",
+        "C": "Azure Service Health",
+        "D": "Microsoft Cost Management"
+      },
+      "explanation_ar": "توفر Service Trust Portal تقارير التدقيق والشهادات ووثائق الامتثال الخاصة بـ Microsoft لخدماتها السحابية. أما Advisor وService Health فيقدّمان تقارير عن مواردك أنت، لا عن عمليات تدقيق الامتثال الخاصة بـ Microsoft."
     },
     {
       "uid": "az900-080",
@@ -1200,7 +1819,15 @@
       },
       "answer": ["A"],
       "explanation": "Bicep files and ARM templates describe resources declaratively, so the same file deploys an identical, repeatable environment and can be versioned in source control. The other options do not deploy resources.",
-      "reference": "https://learn.microsoft.com/en-us/azure/azure-resource-manager/bicep/overview"
+      "reference": "https://learn.microsoft.com/en-us/azure/azure-resource-manager/bicep/overview",
+      "question_ar": "يحتاج فريقك إلى نشر المجموعة نفسها من موارد Azure في بيئات التطوير والاختبار والإنتاج بشكل متكرر ومتسق، مع الاحتفاظ بالتكوين في نظام التحكم بالمصادر. ماذا يجب أن تستخدم؟",
+      "options_ar": {
+        "A": "البنية التحتية كتعليمات برمجية (Infrastructure as code) باستخدام Bicep أو قوالب ARM",
+        "B": "توصيات Azure Advisor",
+        "C": "أقفال الموارد",
+        "D": "Azure Service Health"
+      },
+      "explanation_ar": "تصف ملفات Bicep وقوالب ARM الموارد بطريقة تعريفية (declarative)، لذا ينشر الملف نفسه بيئة متطابقة قابلة للتكرار، ويمكن إدارة إصداراته في نظام التحكم بالمصادر. أما الخيارات الأخرى فلا تنشر موارد."
     },
     {
       "uid": "az900-081",
@@ -1215,7 +1842,15 @@
       },
       "answer": ["C"],
       "explanation": "Bicep is a domain-specific language for declaratively deploying Azure resources, and Bicep files are converted to ARM JSON templates. Azure CLI and Azure PowerShell are imperative command tools.",
-      "reference": "https://learn.microsoft.com/en-us/azure/azure-resource-manager/bicep/overview"
+      "reference": "https://learn.microsoft.com/en-us/azure/azure-resource-manager/bicep/overview",
+      "question_ar": "ما اللغة التي تستخدم بناء جملة تعريفيًا (declarative) موجزًا لنشر موارد Azure، ويتم تحويلها إلى قوالب JSON الخاصة بـ Azure Resource Manager (ARM)؟",
+      "options_ar": {
+        "A": "Azure CLI",
+        "B": "Azure PowerShell",
+        "C": "Bicep",
+        "D": "AzCopy"
+      },
+      "explanation_ar": "Bicep لغة خاصة بمجال محدد لنشر موارد Azure بطريقة تعريفية، وتُحوَّل ملفات Bicep إلى قوالب ARM بتنسيق JSON. أما Azure CLI وAzure PowerShell فهما أداتا أوامر أمرية (imperative)."
     },
     {
       "uid": "az900-082",
@@ -1230,7 +1865,15 @@
       },
       "answer": ["D"],
       "explanation": "Azure Resource Manager is the single management layer that handles all requests to Azure, which is why every tool produces consistent results. Azure Policy is evaluated as part of that process but is not the management layer itself.",
-      "reference": "https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/overview"
+      "reference": "https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/overview",
+      "question_ar": "ما خدمة Azure التي تمثل طبقة النشر والإدارة التي تستقبل كل طلب لإنشاء الموارد أو تغييرها وتصادق عليه وتخوّله، سواء جاء الطلب من المدخل أو Azure CLI أو Azure PowerShell أو REST API؟",
+      "options_ar": {
+        "A": "Azure Arc",
+        "B": "Azure Monitor",
+        "C": "Azure Policy",
+        "D": "Azure Resource Manager (ARM)"
+      },
+      "explanation_ar": "Azure Resource Manager هي طبقة الإدارة الموحّدة التي تعالج جميع الطلبات الموجهة إلى Azure، ولهذا تعطي كل الأدوات نتائج متسقة. وتُقيَّم Azure Policy ضمن هذه العملية، لكنها ليست طبقة الإدارة نفسها."
     },
     {
       "uid": "az900-083",
@@ -1245,7 +1888,15 @@
       },
       "answer": ["A"],
       "explanation": "Azure Cloud Shell is a browser-based, authenticated shell with Bash and PowerShell and the Azure CLI and Azure PowerShell tools preinstalled. Azure Bastion provides RDP/SSH access to VMs, not a management shell.",
-      "reference": "https://learn.microsoft.com/en-us/azure/cloud-shell/overview"
+      "reference": "https://learn.microsoft.com/en-us/azure/cloud-shell/overview",
+      "question_ar": "يعمل مسؤول من كمبيوتر محمول مستعار، ويحتاج إلى تشغيل أوامر Azure CLI وAzure PowerShell على اشتراك الشركة دون تثبيت أي برامج. ماذا يجب أن يستخدم المسؤول؟",
+      "options_ar": {
+        "A": "Azure Cloud Shell",
+        "B": "Azure Storage Explorer",
+        "C": "Azure Bastion",
+        "D": "Azure Advisor"
+      },
+      "explanation_ar": "Azure Cloud Shell واجهة أوامر (shell) تعمل من المتصفح وتتطلب المصادقة، وتتضمن Bash وPowerShell مع أداتَي Azure CLI وAzure PowerShell مثبّتتين مسبقًا. أما Azure Bastion فتوفر وصولًا إلى الأجهزة الظاهرية عبر RDP/SSH، وليست واجهة أوامر للإدارة."
     },
     {
       "uid": "az900-084",
@@ -1260,7 +1911,15 @@
       },
       "answer": ["B"],
       "explanation": "Azure Arc projects servers, Kubernetes clusters, and data services outside Azure into Azure Resource Manager so you can manage and govern them with Azure tools. Azure Migrate moves workloads into Azure rather than managing them where they are.",
-      "reference": "https://learn.microsoft.com/en-us/azure/azure-arc/overview"
+      "reference": "https://learn.microsoft.com/en-us/azure/azure-arc/overview",
+      "question_ar": "لدى شركتك خوادم Linux في مركز بياناتها الخاص ولدى موفّر سحابي آخر. تريد رؤيتها في مدخل Azure، وتنظيمها باستخدام العلامات، وتطبيق Azure Policy عليها كما لو كانت موارد Azure. ماذا يجب أن تستخدم؟",
+      "options_ar": {
+        "A": "Azure Migrate",
+        "B": "Azure Arc",
+        "C": "Azure ExpressRoute",
+        "D": "Azure Data Box"
+      },
+      "explanation_ar": "تُسقط Azure Arc الخوادم ومجموعات Kubernetes وخدمات البيانات الموجودة خارج Azure في Azure Resource Manager، فتتمكن من إدارتها وحوكمتها بأدوات Azure. أما Azure Migrate فتنقل أحمال العمل إلى Azure بدلًا من إدارتها في أماكنها."
     },
     {
       "uid": "az900-085",
@@ -1275,7 +1934,15 @@
       },
       "answer": ["C"],
       "explanation": "Azure Advisor evaluates your resources and gives personalized best-practice recommendations across reliability, security, performance, operational excellence, and cost. Service Health reports on Azure service issues rather than your configuration.",
-      "reference": "https://learn.microsoft.com/en-us/azure/advisor/advisor-overview"
+      "reference": "https://learn.microsoft.com/en-us/azure/advisor/advisor-overview",
+      "question_ar": "ما الخدمة التي تحلل موارد Azure المنشورة لديك وتقدّم توصيات مخصصة ضمن فئات الموثوقية والأمان والأداء والتميز التشغيلي والتكلفة؟",
+      "options_ar": {
+        "A": "Azure Service Health",
+        "B": "Azure Monitor",
+        "C": "Azure Advisor",
+        "D": "Azure Pricing calculator"
+      },
+      "explanation_ar": "يقيّم Azure Advisor مواردك ويقدّم توصيات مخصصة وفق أفضل الممارسات في مجالات الموثوقية والأمان والأداء والتميز التشغيلي والتكلفة. أما Service Health فتقدّم تقارير عن مشكلات خدمات Azure بدلًا من تكوين مواردك."
     },
     {
       "uid": "az900-086",
@@ -1290,7 +1957,15 @@
       },
       "answer": ["D"],
       "explanation": "Azure Service Health gives a personalized view of service incidents, planned maintenance, and health advisories that affect your services and regions, and can raise alerts. Advisor gives configuration recommendations instead.",
-      "reference": "https://learn.microsoft.com/en-us/azure/service-health/overview"
+      "reference": "https://learn.microsoft.com/en-us/azure/service-health/overview",
+      "question_ar": "تحتاج إلى تلقي تنبيه عندما يؤثر انقطاع في خدمة Azure أو حدث صيانة مخطط لها على المناطق والخدمات التي يستخدمها اشتراكك. ماذا يجب أن تستخدم؟",
+      "options_ar": {
+        "A": "Azure Advisor",
+        "B": "Microsoft Defender for Cloud",
+        "C": "Azure Policy",
+        "D": "Azure Service Health"
+      },
+      "explanation_ar": "توفر Azure Service Health عرضًا مخصصًا لحوادث الخدمة والصيانة المخطط لها والإرشادات الصحية التي تؤثر على خدماتك ومناطقك، ويمكنها إصدار تنبيهات. أما Advisor فيقدّم توصيات بشأن التكوين بدلًا من ذلك."
     },
     {
       "uid": "az900-087",
@@ -1305,7 +1980,15 @@
       },
       "answer": ["C"],
       "explanation": "Resource health shows the current and past health of your individual resources, such as a specific VM. Azure status gives a global view of all Azure services, and Service health is a personalized view of services and regions.",
-      "reference": "https://learn.microsoft.com/en-us/azure/service-health/overview"
+      "reference": "https://learn.microsoft.com/en-us/azure/service-health/overview",
+      "question_ar": "أصبح الوصول إلى جهاز ظاهري واحد متعذرًا، وتريد معرفة ما إذا كانت هناك مشكلة في النظام الأساسي لـ Azure تؤثر على هذا الجهاز الظاهري تحديدًا. ما مكوّن Azure Service Health الذي يجب أن تتحقق منه؟",
+      "options_ar": {
+        "A": "Azure status",
+        "B": "Service health",
+        "C": "Resource health",
+        "D": "Azure Advisor"
+      },
+      "explanation_ar": "يعرض Resource health الحالة الصحية الحالية والسابقة لمواردك الفردية، مثل جهاز ظاهري محدد. أما Azure status فيقدّم عرضًا عالميًا لجميع خدمات Azure، وService health عرض مخصص للخدمات والمناطق."
     },
     {
       "uid": "az900-088",
@@ -1320,7 +2003,15 @@
       },
       "answer": ["A"],
       "explanation": "Log Analytics is the Azure portal tool for editing and running KQL queries against data in Azure Monitor Logs.",
-      "reference": "https://learn.microsoft.com/en-us/azure/azure-monitor/logs/log-analytics-overview"
+      "reference": "https://learn.microsoft.com/en-us/azure/azure-monitor/logs/log-analytics-overview",
+      "question_ar": "تحتاج إلى كتابة استعلامات بلغة Kusto Query Language (KQL) وتشغيلها على بيانات السجلات التي يجمعها Azure Monitor. ما الأداة التي يجب أن تستخدمها؟",
+      "options_ar": {
+        "A": "Log Analytics",
+        "B": "Azure Advisor",
+        "C": "Azure Service Health",
+        "D": "Azure Pricing calculator"
+      },
+      "explanation_ar": "Log Analytics هي الأداة في مدخل Azure لتحرير استعلامات KQL وتشغيلها على البيانات الموجودة في Azure Monitor Logs."
     },
     {
       "uid": "az900-089",
@@ -1335,7 +2026,15 @@
       },
       "answer": ["B"],
       "explanation": "Application Insights is the application performance monitoring feature of Azure Monitor and tracks requests, response times, failures, dependencies, and page views. The other services do not monitor application telemetry.",
-      "reference": "https://learn.microsoft.com/en-us/azure/azure-monitor/app/app-insights-overview"
+      "reference": "https://learn.microsoft.com/en-us/azure/azure-monitor/app/app-insights-overview",
+      "question_ar": "يريد المطورون لديك مراقبة معدلات الطلبات وأوقات الاستجابة ومعدلات الإخفاق والتبعيات لتطبيق ويب، ومعرفة الصفحات الأكثر زيارة من المستخدمين. ما ميزة Azure Monitor التي يجب أن يستخدموها؟",
+      "options_ar": {
+        "A": "Azure Advisor",
+        "B": "Application Insights",
+        "C": "Azure Service Health",
+        "D": "Azure Policy"
+      },
+      "explanation_ar": "Application Insights هي ميزة مراقبة أداء التطبيقات في Azure Monitor، وتتتبع الطلبات وأوقات الاستجابة والإخفاقات والتبعيات ومشاهدات الصفحات. أما الخدمات الأخرى فلا تراقب بيانات القياس عن بُعد (telemetry) الخاصة بالتطبيقات."
     },
     {
       "uid": "az900-090",
@@ -1350,7 +2049,15 @@
       },
       "answer": ["D"],
       "explanation": "Azure Monitor alert rules evaluate metrics such as CPU percentage against a condition and use an action group to send notifications such as email. Service Health alerts cover Azure platform events, not your VM's metrics.",
-      "reference": "https://learn.microsoft.com/en-us/azure/azure-monitor/fundamentals/overview"
+      "reference": "https://learn.microsoft.com/en-us/azure/azure-monitor/fundamentals/overview",
+      "question_ar": "تحتاج إلى تلقي إشعار بالبريد الإلكتروني كلما بقي استخدام وحدة المعالجة المركزية لجهاز ظاهري فوق 90 بالمائة لمدة 10 دقائق. ماذا يجب أن تكوّن؟",
+      "options_ar": {
+        "A": "توصية من Azure Advisor",
+        "B": "تنبيهًا من Azure Service Health",
+        "C": "ميزانية في Cost Management",
+        "D": "قاعدة تنبيه في Azure Monitor مع مجموعة إجراءات (action group)"
+      },
+      "explanation_ar": "تقيّم قواعد التنبيه في Azure Monitor مقاييس مثل نسبة استخدام وحدة المعالجة المركزية مقابل شرط محدد، وتستخدم مجموعة إجراءات لإرسال الإشعارات مثل البريد الإلكتروني. أما تنبيهات Service Health فتغطي أحداث النظام الأساسي لـ Azure، لا مقاييس جهازك الظاهري."
     },
     {
       "uid": "az900-091",
@@ -1365,7 +2072,15 @@
       },
       "answer": ["B"],
       "explanation": "Policies assigned at a management group are inherited by every subscription in it, including subscriptions moved into it later. Assigning per resource group is far more work and misses new resource groups.",
-      "reference": "https://learn.microsoft.com/en-us/azure/governance/management-groups/overview"
+      "reference": "https://learn.microsoft.com/en-us/azure/governance/management-groups/overview",
+      "question_ar": "لدى شركتك 12 اشتراكًا. تحتاج إلى تطبيق نهج Azure Policy نفسه عليها جميعًا، بما في ذلك الاشتراكات التي تُضاف لاحقًا، بأقل جهد إداري ممكن. ماذا يجب أن تفعل؟",
+      "options_ar": {
+        "A": "تعيين النهج لكل مجموعة موارد في كل اشتراك",
+        "B": "وضع الاشتراكات في مجموعة إدارة وتعيين النهج لمجموعة الإدارة",
+        "C": "تطبيق علامة على كل اشتراك",
+        "D": "تطبيق قفل مورد على كل اشتراك"
+      },
+      "explanation_ar": "النُّهج المعيّنة على مستوى مجموعة الإدارة ترثها كل الاشتراكات الموجودة فيها، بما في ذلك الاشتراكات التي تُنقل إليها لاحقًا. أما التعيين لكل مجموعة موارد فيتطلب جهدًا أكبر بكثير ولا يشمل مجموعات الموارد الجديدة."
     },
     {
       "uid": "az900-092",
@@ -1381,7 +2096,16 @@
       },
       "answer": ["B", "D"],
       "explanation": "Azure Hybrid Benefit lets you reuse eligible on-premises licenses to avoid paying for the Windows Server license in Azure, and deallocated VMs stop incurring compute charges. Tags, resource groups, and locks have no effect on price.",
-      "reference": "https://learn.microsoft.com/en-us/training/paths/describe-azure-management-governance/"
+      "reference": "https://learn.microsoft.com/en-us/training/paths/describe-azure-management-governance/",
+      "question_ar": "تريد شركتك خفض تكلفة أجهزتها الظاهرية في Azure. ما الإجراءان اللذان سيخفضان التكاليف؟ (اختر اثنتين.)",
+      "options_ar": {
+        "A": "تطبيق علامات على كل جهاز ظاهري",
+        "B": "استخدام Azure Hybrid Benefit مع تراخيص Windows Server الحالية المشمولة بـ Software Assurance",
+        "C": "نقل الأجهزة الظاهرية إلى مجموعة موارد جديدة",
+        "D": "إلغاء تخصيص (deallocate) الأجهزة الظاهرية عندما لا تكون قيد الاستخدام",
+        "E": "تطبيق قفل Delete على كل جهاز ظاهري"
+      },
+      "explanation_ar": "يتيح لك Azure Hybrid Benefit إعادة استخدام التراخيص المحلية المؤهلة لتجنب دفع ثمن ترخيص Windows Server في Azure، كما تتوقف رسوم الحوسبة على الأجهزة الظاهرية التي أُلغي تخصيصها. أما العلامات ومجموعات الموارد والأقفال فلا تأثير لها على السعر."
     },
     {
       "uid": "az900-093",
@@ -1397,7 +2121,16 @@
       },
       "answer": ["B", "C", "E"],
       "explanation": "The Azure portal, Azure CLI, and Azure PowerShell all send requests through Azure Resource Manager to create and manage resources. The Pricing calculator only estimates cost, and the Service Trust Portal publishes compliance documentation.",
-      "reference": "https://learn.microsoft.com/en-us/training/paths/describe-azure-management-governance/"
+      "reference": "https://learn.microsoft.com/en-us/training/paths/describe-azure-management-governance/",
+      "question_ar": "ما الأدوات الثلاث التي يمكنك استخدامها لإنشاء موارد Azure وإدارتها؟ (اختر ثلاث إجابات.)",
+      "options_ar": {
+        "A": "Azure Pricing calculator",
+        "B": "Azure CLI",
+        "C": "مدخل Azure (Azure portal)",
+        "D": "Service Trust Portal",
+        "E": "Azure PowerShell"
+      },
+      "explanation_ar": "يرسل كلٌّ من مدخل Azure وAzure CLI وAzure PowerShell الطلبات عبر Azure Resource Manager لإنشاء الموارد وإدارتها. أما Pricing calculator فتقتصر على تقدير التكلفة، وتنشر Service Trust Portal وثائق الامتثال."
     },
     {
       "uid": "az900-094",
@@ -1412,7 +2145,15 @@
       },
       "answer": ["B", "C"],
       "explanation": "Azure Policy evaluates both existing and new resources for compliance and can deny noncompliant deployments. Granting permissions is the job of Azure RBAC, and policies apply regardless of who creates the resource.",
-      "reference": "https://learn.microsoft.com/en-us/azure/governance/policy/overview"
+      "reference": "https://learn.microsoft.com/en-us/azure/governance/policy/overview",
+      "question_ar": "ما العبارتان الصحيحتان بشأن Azure Policy؟ (اختر اثنتين.)",
+      "options_ar": {
+        "A": "تمنح Azure Policy المستخدمين إذنًا لإنشاء الموارد",
+        "B": "تقيّم Azure Policy الموارد الموجودة وتُبلغ عمّا إذا كانت متوافقة",
+        "C": "يمكن لـ Azure Policy رفض إنشاء الموارد التي لا تستوفي قواعدها",
+        "D": "تنطبق Azure Policy فقط على الموارد التي ينشئها مستخدمون لديهم الدور Owner"
+      },
+      "explanation_ar": "تقيّم Azure Policy مدى امتثال الموارد الموجودة والجديدة على حد سواء، ويمكنها رفض عمليات النشر غير المتوافقة. أما منح الأذونات فهو مهمة Azure RBAC، وتنطبق النُّهج بغض النظر عن الشخص الذي ينشئ المورد."
     },
     {
       "uid": "az900-095",
@@ -1427,7 +2168,15 @@
       },
       "answer": ["A", "C"],
       "explanation": "Tags are name-value pairs, and Azure Policy can require tags or copy them from a resource group. By default, resources do not inherit tags from their resource group or subscription, and tags do not affect where a resource is deployed.",
-      "reference": "https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/tag-resources"
+      "reference": "https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/tag-resources",
+      "question_ar": "ما العبارتان الصحيحتان بشأن علامات (tags) موارد Azure؟ (اختر اثنتين.)",
+      "options_ar": {
+        "A": "العلامة زوج من الاسم والقيمة يُطبَّق على مورد أو مجموعة موارد أو اشتراك",
+        "B": "ترث الموارد تلقائيًا علامات مجموعة الموارد التي تنتمي إليها بشكل افتراضي",
+        "C": "يمكن استخدام Azure Policy لاشتراط العلامات على الموارد أو فرضها",
+        "D": "تحدد العلامة المنطقة التي يُنشر فيها المورد"
+      },
+      "explanation_ar": "العلامات أزواج من الاسم والقيمة، ويمكن لـ Azure Policy اشتراط العلامات أو نسخها من مجموعة الموارد. وبشكل افتراضي، لا ترث الموارد العلامات من مجموعة الموارد أو الاشتراك، ولا تؤثر العلامات على مكان نشر المورد."
     },
     {
       "uid": "az900-096",
@@ -1443,7 +2192,16 @@
       },
       "answer": ["A", "C", "D"],
       "explanation": "Application Insights, Log Analytics, and alerts are all part of Azure Monitor. The Pricing calculator estimates costs, and the Service Trust Portal publishes Microsoft compliance reports.",
-      "reference": "https://learn.microsoft.com/en-us/azure/azure-monitor/fundamentals/overview"
+      "reference": "https://learn.microsoft.com/en-us/azure/azure-monitor/fundamentals/overview",
+      "question_ar": "تريد شركتك جمع بيانات القياس عن بُعد (telemetry) من موارد Azure وتطبيقاتها وتحليلها والتصرف بناءً عليها. ما الميزات الثلاث التي تنتمي إلى Azure Monitor؟ (اختر ثلاث إجابات.)",
+      "options_ar": {
+        "A": "Application Insights",
+        "B": "Azure Pricing calculator",
+        "C": "Log Analytics",
+        "D": "التنبيهات (Alerts)",
+        "E": "Service Trust Portal"
+      },
+      "explanation_ar": "كلٌّ من Application Insights وLog Analytics والتنبيهات جزء من Azure Monitor. أما Pricing calculator فتقدّر التكاليف، وتنشر Service Trust Portal تقارير الامتثال الخاصة بـ Microsoft."
     },
     {
       "uid": "az900-097",
@@ -1458,7 +2216,15 @@
       },
       "answer": ["B", "D"],
       "explanation": "Cost depends on factors such as the resource type and its size or tier, the region, consumption, and bandwidth. Tags and resource group names are organizational and do not change the price.",
-      "reference": "https://learn.microsoft.com/en-us/training/paths/describe-azure-management-governance/"
+      "reference": "https://learn.microsoft.com/en-us/training/paths/describe-azure-management-governance/",
+      "question_ar": "ما العاملان اللذان يؤثران على تكلفة مورد في Azure؟ (اختر اثنتين.)",
+      "options_ar": {
+        "A": "عدد العلامات المطبّقة على المورد",
+        "B": "منطقة Azure التي يُنشر فيها المورد",
+        "C": "اسم مجموعة الموارد التي تحتوي على المورد",
+        "D": "نوع المورد والحجم أو مستوى الأداء المحدد له"
+      },
+      "explanation_ar": "تعتمد التكلفة على عوامل مثل نوع المورد وحجمه أو مستواه، والمنطقة، والاستهلاك، والنطاق الترددي. أما العلامات وأسماء مجموعات الموارد فهي تنظيمية ولا تغيّر السعر."
     },
     {
       "uid": "az900-098",
@@ -1472,7 +2238,13 @@
       "answer": ["A"],
       "shuffle": false,
       "explanation": "Yes. Locks override user permissions: an Owner cannot delete a locked resource until someone with permission to manage locks removes the lock first.",
-      "reference": "https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/lock-resources"
+      "reference": "https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/lock-resources",
+      "question_ar": "العبارة: ينطبق قفل المورد على جميع المستخدمين، لذا حتى المستخدم الذي لديه الدور Owner لا يمكنه حذف مورد عليه قفل Delete إلى أن تتم إزالة القفل. هل هذه العبارة صحيحة؟",
+      "options_ar": {
+        "A": "نعم",
+        "B": "لا"
+      },
+      "explanation_ar": "نعم. تتجاوز الأقفال أذونات المستخدمين: فلا يمكن لصاحب الدور Owner حذف مورد مقفل إلى أن يزيل القفل أولًا شخص لديه إذن بإدارة الأقفال."
     },
     {
       "uid": "az900-099",
@@ -1486,7 +2258,13 @@
       "answer": ["B"],
       "shuffle": false,
       "explanation": "No. The Pricing calculator only estimates the cost of services you plan to use. Actual incurred charges are analyzed in Microsoft Cost Management.",
-      "reference": "https://learn.microsoft.com/en-us/training/paths/describe-azure-management-governance/"
+      "reference": "https://learn.microsoft.com/en-us/training/paths/describe-azure-management-governance/",
+      "question_ar": "العبارة: تعرض Azure Pricing calculator الرسوم الفعلية التي تكبدتها الموارد المنشورة حاليًا في اشتراكك. هل هذه العبارة صحيحة؟",
+      "options_ar": {
+        "A": "نعم",
+        "B": "لا"
+      },
+      "explanation_ar": "لا. تقتصر Pricing calculator على تقدير تكلفة الخدمات التي تخطط لاستخدامها. أما الرسوم الفعلية المتكبدة فتُحلَّل في Microsoft Cost Management."
     },
     {
       "uid": "az900-100",
@@ -1500,7 +2278,13 @@
       "answer": ["B"],
       "shuffle": false,
       "explanation": "No. A resource lock only prevents deletion or modification; it cannot require tags. An Azure Policy definition that requires the costCenter tag (with the deny effect) would meet the goal.",
-      "reference": "https://learn.microsoft.com/en-us/azure/governance/policy/overview"
+      "reference": "https://learn.microsoft.com/en-us/azure/governance/policy/overview",
+      "question_ar": "تحتاج إلى التأكد من إنشاء كل مورد جديد في Azure مع علامة costCenter. الحل: تطبّق قفل مورد من نوع Delete على نطاق الاشتراك. هل يحقق هذا الهدف؟",
+      "options_ar": {
+        "A": "نعم",
+        "B": "لا"
+      },
+      "explanation_ar": "لا. يقتصر قفل المورد على منع الحذف أو التعديل؛ ولا يمكنه اشتراط العلامات. أما تعريف نهج في Azure Policy يشترط العلامة costCenter (مع التأثير deny) فسيحقق الهدف."
     }
   ]
 }

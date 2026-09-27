@@ -33,6 +33,7 @@ beforeEach(function () {
     RbacTestSchema::create();
     (require database_path('migrations/2026_09_27_100001_create_exams_tables.php'))->up();
     (require database_path('migrations/2026_09_27_100002_add_exam_permissions.php'))->up();
+    (require database_path('migrations/2026_09_27_120001_add_arabic_to_exams.php'))->up();
 
     Role::clearCache();
     RolePermission::clearCache();
@@ -67,7 +68,7 @@ function examRequest(User $user, string $method = 'GET', array $data = []): Requ
     return $request;
 }
 
-it('loads both bundled banks and loading again changes nothing', function () {
+it('loads the bundled banks and loading again changes nothing', function () {
     loadBanks();
 
     $az = Exam::where('code', 'AZ-900')->sole();
@@ -75,6 +76,9 @@ it('loads both bundled banks and loading again changes nothing', function () {
 
     expect($az->questions()->count())->toBe(100)
         ->and($ai->questions()->count())->toBe(80)
+        ->and(Exam::where('code', 'AZ-104')->sole()->questions()->count())->toBe(110)
+        ->and(Exam::where('code', 'AZ-104')->sole()->questionsPerAttempt())->toBe(50)
+        ->and(Exam::where('code', 'AZ-104')->sole()->duration_minutes)->toBe(100)
         ->and($az->questionsPerAttempt())->toBe(45)
         ->and($az->passing_score)->toBe(700);
 

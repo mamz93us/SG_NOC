@@ -20,7 +20,7 @@ class ExamAttempt extends Model
     public const STATUS_EXPIRED = 'expired';
 
     protected $fillable = [
-        'exam_id', 'user_id', 'status', 'started_at', 'expires_at', 'submitted_at',
+        'exam_id', 'user_id', 'status', 'language', 'started_at', 'expires_at', 'submitted_at',
         'question_ids', 'option_orders', 'answers', 'flagged', 'total_questions',
         'correct_count', 'score', 'passing_score', 'passed', 'results', 'domain_results',
     ];
@@ -52,6 +52,13 @@ class ExamAttempt extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public const LANGUAGES = ['en' => 'English', 'ar' => 'العربية'];
+
+    public function isArabic(): bool
+    {
+        return $this->language === 'ar';
     }
 
     public function isInProgress(): bool

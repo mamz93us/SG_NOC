@@ -29,6 +29,9 @@
                         @endif
                     </div>
                     <h6 class="fw-semibold">{{ $exam->title }}</h6>
+                    @if ($exam->arabicQuestionCount() > 0)
+                        <div class="small text-muted mb-2"><i class="bi bi-translate me-1"></i>English · <span lang="ar">العربية</span></div>
+                    @endif
                     @if ($exam->description)
                         <p class="small text-muted">{{ \Illuminate\Support\Str::limit($exam->description, 180) }}</p>
                     @endif

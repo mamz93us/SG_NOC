@@ -24,6 +24,7 @@ class ExamManageController extends Controller
             'attempts as finished_count' => fn ($q) => $q->where('status', '!=', ExamAttempt::STATUS_IN_PROGRESS),
             'attempts as passed_count' => fn ($q) => $q->where('passed', true),
         ])->orderBy('code')->get();
+        $arabic = $exams->mapWithKeys(fn ($exam) => [$exam->id => $exam->arabicQuestionCount()]);
 
         $bundled = collect(ExamBankImporter::bundledFiles())->map(function ($path) {
             $data = json_decode((string) @file_get_contents($path), true);
@@ -36,7 +37,7 @@ class ExamManageController extends Controller
             ];
         });
 
-        return view('admin.exams.manage.index', compact('exams', 'bundled'));
+        return view('admin.exams.manage.index', compact('exams', 'bundled', 'arabic'));
     }
 
     public function create()
@@ -113,6 +114,8 @@ class ExamManageController extends Controller
             'code' => ['required', 'string', 'max:30', 'unique:exams,code'.($exam ? ','.$exam->id : '')],
             'title' => ['required', 'string', 'max:200'],
             'description' => ['nullable', 'string', 'max:5000'],
+            'title_ar' => ['nullable', 'string', 'max:200'],
+            'description_ar' => ['nullable', 'string', 'max:5000'],
             'duration_minutes' => ['required', 'integer', 'min:1', 'max:600'],
             'question_count' => ['required', 'integer', 'min:0', 'max:500'],
             'passing_score' => ['required', 'integer', 'min:1', 'max:1000'],

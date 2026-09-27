@@ -57,6 +57,8 @@ class ExamController extends Controller
             'questionCount' => $exam->questionsPerAttempt($bankSize),
             'domains' => $exam->activeQuestions()->selectRaw('domain, count(*) as n')->groupBy('domain')->orderBy('domain')->get(),
             'open' => $open,
+            'arabicCount' => $exam->arabicQuestionCount(),
+            'bankSize' => $bankSize,
         ]);
     }
 
@@ -64,8 +66,10 @@ class ExamController extends Controller
     {
         abort_unless($exam->is_active, 404);
 
+        $language = $request->input('language') === 'ar' && $exam->arabicQuestionCount() > 0 ? 'ar' : 'en';
+
         try {
-            $attempt = $session->startOrResume($exam, $request->user());
+            $attempt = $session->startOrResume($exam, $request->user(), $language);
         } catch (RuntimeException $e) {
             return back()->with('error', $e->getMessage());
         }

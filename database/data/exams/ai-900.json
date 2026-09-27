@@ -3,6 +3,8 @@
     "code": "AI-900",
     "title": "Microsoft Azure AI Fundamentals",
     "description": "AI-900 validates foundational knowledge of artificial intelligence and machine learning concepts and the Azure services behind them, including computer vision, natural language processing, document processing and generative AI workloads. This is an internal practice simulation built from original questions for team preparation; it is not affiliated with or endorsed by Microsoft.",
+    "title_ar": "أساسيات الذكاء الاصطناعي في Microsoft Azure",
+    "description_ar": "يتحقق اختبار AI-900 من المعرفة الأساسية بمفاهيم الذكاء الاصطناعي والتعلم الآلي (machine learning) وخدمات Azure التي تقوم عليها، بما في ذلك أحمال عمل الرؤية الحاسوبية ومعالجة اللغة الطبيعية ومعالجة المستندات والذكاء الاصطناعي التوليدي. هذه محاكاة تدريبية داخلية مبنية على أسئلة أصلية لإعداد الفريق، وهي ليست تابعة لـ Microsoft ولا معتمدة منها.",
     "duration_minutes": 45,
     "question_count": 45,
     "passing_score": 700
@@ -21,7 +23,15 @@
       },
       "answer": ["A"],
       "explanation": "Anomaly detection identifies unusual data points or patterns in a stream of data, such as sensor readings that differ from normal machine behavior.",
-      "reference": "https://learn.microsoft.com/en-us/credentials/certifications/azure-ai-fundamentals/"
+      "reference": "https://learn.microsoft.com/en-us/credentials/certifications/azure-ai-fundamentals/",
+      "question_ar": "تجمع شركة تصنيع قراءات درجة الحرارة والاهتزاز من آلات الإنتاج لديها كل ثانية. وتريد أن تتلقى تنبيهًا تلقائيًا عندما تنحرف القراءات عن الأنماط الطبيعية، مما قد يشير إلى عطل وشيك. ما نوع حمل عمل الذكاء الاصطناعي هذا؟",
+      "options_ar": {
+        "A": "اكتشاف الحالات الشاذة (anomaly detection)",
+        "B": "الرؤية الحاسوبية (computer vision)",
+        "C": "معالجة اللغة الطبيعية (NLP)",
+        "D": "التنقيب في المعرفة (knowledge mining)"
+      },
+      "explanation_ar": "يحدد اكتشاف الحالات الشاذة نقاط البيانات أو الأنماط غير المعتادة في تدفق من البيانات، مثل قراءات أجهزة الاستشعار التي تختلف عن السلوك الطبيعي للآلة."
     },
     {
       "uid": "ai900-002",
@@ -36,7 +46,15 @@
       },
       "answer": ["B"],
       "explanation": "Knowledge mining is implemented with Azure AI Search, which can apply AI enrichment (such as OCR and entity extraction) during indexing and make large volumes of unstructured content searchable.",
-      "reference": "https://learn.microsoft.com/en-us/azure/search/search-what-is-azure-search"
+      "reference": "https://learn.microsoft.com/en-us/azure/search/search-what-is-azure-search",
+      "question_ar": "لدى شركة محاماة ملايين العقود ورسائل البريد الإلكتروني والمذكرات الممسوحة ضوئيًا. وتريد استخراج النصوص والكيانات منها باستخدام الإثراء بالذكاء الاصطناعي (AI enrichment) وجعل المجموعة بأكملها قابلة للبحث من فهرس واحد. ما خدمة Azure التي يجب أن تستخدمها؟",
+      "options_ar": {
+        "A": "Azure AI Content Safety",
+        "B": "Azure AI Search",
+        "C": "Azure AI Translator",
+        "D": "Azure Machine Learning designer"
+      },
+      "explanation_ar": "يُنفَّذ التنقيب في المعرفة (knowledge mining) باستخدام Azure AI Search، الذي يمكنه تطبيق الإثراء بالذكاء الاصطناعي (مثل التعرف الضوئي على الحروف (OCR) واستخراج الكيانات) أثناء الفهرسة، وجعل كميات كبيرة من المحتوى غير المنظم قابلة للبحث."
     },
     {
       "uid": "ai900-003",
@@ -50,7 +68,15 @@
         "D": "Computer vision"
       },
       "answer": ["C"],
-      "explanation": "Generative AI creates new original content, such as text, from a prompt. Writing a product description from bullet points is a text-generation task."
+      "explanation": "Generative AI creates new original content, such as text, from a prompt. Writing a product description from bullet points is a text-generation task.",
+      "question_ar": "يريد متجر تجزئة عبر الإنترنت إنشاء مسودة أولى لوصف المنتج تلقائيًا من قائمة قصيرة من النقاط يقدمها مسؤول عرض المنتجات. ما نوع حمل عمل الذكاء الاصطناعي هذا؟",
+      "options_ar": {
+        "A": "اكتشاف الحالات الشاذة (anomaly detection)",
+        "B": "التنقيب في المعرفة (knowledge mining)",
+        "C": "الذكاء الاصطناعي التوليدي (generative AI)",
+        "D": "الرؤية الحاسوبية (computer vision)"
+      },
+      "explanation_ar": "ينشئ الذكاء الاصطناعي التوليدي محتوى أصليًا جديدًا، مثل النصوص، انطلاقًا من موجّه (prompt). وكتابة وصف منتج من نقاط موجزة هي مهمة توليد نصوص."
     },
     {
       "uid": "ai900-004",
@@ -65,7 +91,15 @@
       },
       "answer": ["D"],
       "explanation": "Azure AI Document Intelligence extracts text, key-value pairs and tables from documents, and its prebuilt invoice model returns fields such as vendor, date, line items and totals without custom training.",
-      "reference": "https://learn.microsoft.com/en-us/azure/ai-services/document-intelligence/overview"
+      "reference": "https://learn.microsoft.com/en-us/azure/ai-services/document-intelligence/overview",
+      "question_ar": "تتلقى شركة تأمين آلاف الفواتير الممسوحة ضوئيًا من ورش الإصلاح كل أسبوع. وتحتاج إلى استخراج اسم المورّد وتاريخ الفاتورة والبنود والمبلغ الإجمالي إلى نظام المطالبات لديها. ما خدمة Azure الأنسب لحمل عمل معالجة المستندات هذا؟",
+      "options_ar": {
+        "A": "Azure AI Speech",
+        "B": "Azure AI Custom Vision",
+        "C": "Azure AI Translator",
+        "D": "Azure AI Document Intelligence"
+      },
+      "explanation_ar": "تستخرج خدمة Azure AI Document Intelligence النصوص وأزواج المفتاح والقيمة والجداول من المستندات، ويُرجع نموذج الفواتير المُعدّ مسبقًا (prebuilt invoice model) فيها حقولًا مثل المورّد والتاريخ والبنود والإجماليات دون الحاجة إلى تدريب مخصص."
     },
     {
       "uid": "ai900-005",
@@ -79,7 +113,15 @@
         "D": "Reliability and safety"
       },
       "answer": ["A"],
-      "explanation": "Fairness means AI systems should treat all people equitably and not allocate opportunities, such as loans, differently to groups with similar qualifications."
+      "explanation": "Fairness means AI systems should treat all people equitably and not allocate opportunities, such as loans, differently to groups with similar qualifications.",
+      "question_ar": "يكتشف أحد البنوك أن نموذج الموافقة على القروض لديه يوافق على المتقدمين من أحد الجنسين بمعدل أعلى بشكل ملحوظ من المتقدمين من الجنس الآخر الذين لديهم الدخل والسجل الائتماني والديون نفسها. ما مبدأ الذكاء الاصطناعي المسؤول (Responsible AI) الذي يتم انتهاكه؟",
+      "options_ar": {
+        "A": "الإنصاف (Fairness)",
+        "B": "الشمولية (Inclusiveness)",
+        "C": "الشفافية (Transparency)",
+        "D": "الموثوقية والأمان (Reliability and safety)"
+      },
+      "explanation_ar": "يعني الإنصاف أن أنظمة الذكاء الاصطناعي يجب أن تعامل جميع الأشخاص بإنصاف، وألا توزّع الفرص، مثل القروض، بشكل مختلف على مجموعات ذات مؤهلات متماثلة."
     },
     {
       "uid": "ai900-006",
@@ -93,7 +135,15 @@
         "D": "Transparency"
       },
       "answer": ["B"],
-      "explanation": "Reliability and safety means AI systems should perform consistently as designed, respond safely to unanticipated conditions and be thoroughly tested before and during deployment."
+      "explanation": "Reliability and safety means AI systems should perform consistently as designed, respond safely to unanticipated conditions and be thoroughly tested before and during deployment.",
+      "question_ar": "يعمل أحد المستشفيات على نشر نظام ذكاء اصطناعي يوصي بجرعات الأدوية. ويشترط الفريق إجراء اختبارات صارمة، وتحديد حدود واضحة للتشغيل، وتوفير بديل آمن بالرجوع إلى طبيب مختص كلما واجه النظام ظروفًا لم يُصمَّم لها. ما مبدأ الذكاء الاصطناعي المسؤول الذي يعالجه ذلك بشكل مباشر أكثر من غيره؟",
+      "options_ar": {
+        "A": "المساءلة (Accountability)",
+        "B": "الموثوقية والأمان (Reliability and safety)",
+        "C": "الشمولية (Inclusiveness)",
+        "D": "الشفافية (Transparency)"
+      },
+      "explanation_ar": "تعني الموثوقية والأمان أن أنظمة الذكاء الاصطناعي يجب أن تعمل باتساق كما صُممت، وأن تستجيب بأمان للظروف غير المتوقعة، وأن تُختبر بدقة قبل النشر وأثناءه."
     },
     {
       "uid": "ai900-007",
@@ -107,7 +157,15 @@
         "D": "Accountability"
       },
       "answer": ["C"],
-      "explanation": "Inclusiveness means AI systems should empower and engage everyone, including people with disabilities, by designing for the full range of human abilities."
+      "explanation": "Inclusiveness means AI systems should empower and engage everyone, including people with disabilities, by designing for the full range of human abilities.",
+      "question_ar": "تصمم جهة حكومية بوابة خدماتها المدعومة بالذكاء الاصطناعي بحيث تعمل مع برامج قراءة الشاشة، وتتيح الإدخال الصوتي للأشخاص ذوي القدرة المحدودة على الحركة، وتوفر تسميات توضيحية للاستجابات الصوتية. ما مبدأ الذكاء الاصطناعي المسؤول الذي يوضحه ذلك؟",
+      "options_ar": {
+        "A": "الإنصاف (Fairness)",
+        "B": "الخصوصية والأمان (Privacy and security)",
+        "C": "الشمولية (Inclusiveness)",
+        "D": "المساءلة (Accountability)"
+      },
+      "explanation_ar": "تعني الشمولية أن أنظمة الذكاء الاصطناعي يجب أن تمكّن الجميع وتُشركهم، بمن فيهم الأشخاص ذوو الإعاقة، من خلال تصميم يراعي النطاق الكامل للقدرات البشرية."
     },
     {
       "uid": "ai900-008",
@@ -121,7 +179,15 @@
         "D": "Transparency"
       },
       "answer": ["D"],
-      "explanation": "Transparency means people should understand when they are interacting with AI, how the system works and what its limitations are."
+      "explanation": "Transparency means people should understand when they are interacting with AI, how the system works and what its limitations are.",
+      "question_ar": "يُخبر روبوت المحادثة الخاص بخدمة العملاء في إحدى الشركات المستخدمين بوضوح بأنهم يتحدثون مع ذكاء اصطناعي، ويشرح ما يمكن للروبوت فعله وما لا يمكنه فعله، ويوثّق كيفية إنتاج إجاباته. ما مبدأ الذكاء الاصطناعي المسؤول الذي يدعمه ذلك؟",
+      "options_ar": {
+        "A": "الموثوقية والأمان (Reliability and safety)",
+        "B": "الإنصاف (Fairness)",
+        "C": "الخصوصية والأمان (Privacy and security)",
+        "D": "الشفافية (Transparency)"
+      },
+      "explanation_ar": "تعني الشفافية أن الأشخاص يجب أن يدركوا متى يتفاعلون مع الذكاء الاصطناعي، وكيف يعمل النظام، وما حدوده."
     },
     {
       "uid": "ai900-009",
@@ -135,7 +201,15 @@
         "D": "Inclusiveness"
       },
       "answer": ["A"],
-      "explanation": "Accountability means people must be answerable for AI systems, supported by governance structures and oversight such as review boards."
+      "explanation": "Accountability means people must be answerable for AI systems, supported by governance structures and oversight such as review boards.",
+      "question_ar": "تُنشئ مؤسسة مجلس مراجعة داخليًا يجب أن يوافق على كل نظام ذكاء اصطناعي قبل إطلاقه، وتحدد بالاسم الأشخاص المسؤولين عن سلوك كل نظام في بيئة الإنتاج. ما مبدأ الذكاء الاصطناعي المسؤول هذا؟",
+      "options_ar": {
+        "A": "المساءلة (Accountability)",
+        "B": "الشفافية (Transparency)",
+        "C": "الإنصاف (Fairness)",
+        "D": "الشمولية (Inclusiveness)"
+      },
+      "explanation_ar": "تعني المساءلة أن الأشخاص يجب أن يكونوا مسؤولين عن أنظمة الذكاء الاصطناعي، بدعم من هياكل الحوكمة والإشراف مثل مجالس المراجعة."
     },
     {
       "uid": "ai900-010",
@@ -150,7 +224,16 @@
         "E": "Determining whether a written product review is positive or negative"
       },
       "answer": ["B", "D"],
-      "explanation": "Detecting hard hats in images (object detection) and reading text from photos (OCR) both analyze visual input, so they are computer vision workloads. Translation and sentiment analysis are NLP, and sales prediction is machine learning forecasting."
+      "explanation": "Detecting hard hats in images (object detection) and reading text from photos (OCR) both analyze visual input, so they are computer vision workloads. Translation and sentiment analysis are NLP, and sales prediction is machine learning forecasting.",
+      "question_ar": "أيٌّ من السيناريوهات التالية تُعد أمثلة على أحمال عمل الرؤية الحاسوبية (computer vision)؟ (اختر اثنتين.)",
+      "options_ar": {
+        "A": "ترجمة عقد مبيعات من الفرنسية إلى الإنجليزية",
+        "B": "فحص صور الكاميرات لتحديد ما إذا كان العاملون في موقع بناء يرتدون الخوذات الواقية",
+        "C": "التنبؤ بإيرادات المبيعات للشهر القادم من الأرقام التاريخية",
+        "D": "قراءة النص المطبوع على صور لافتات الشوارع",
+        "E": "تحديد ما إذا كانت مراجعة مكتوبة لمنتج إيجابية أم سلبية"
+      },
+      "explanation_ar": "يحلل كلٌّ من اكتشاف الخوذات في الصور (اكتشاف الكائنات - object detection) وقراءة النص من الصور (التعرف الضوئي على الحروف - OCR) مدخلات مرئية، لذا فهما من أحمال عمل الرؤية الحاسوبية. أما الترجمة وتحليل المشاعر فهما من معالجة اللغة الطبيعية (NLP)، والتنبؤ بالمبيعات هو تنبؤ باستخدام التعلم الآلي."
     },
     {
       "uid": "ai900-011",
@@ -164,7 +247,15 @@
         "D": "Inclusiveness"
       },
       "answer": ["A", "D"],
-      "explanation": "Microsoft's six principles are fairness, reliability and safety, privacy and security, inclusiveness, transparency and accountability. Profitability and scalability are business or technical goals, not Responsible AI principles."
+      "explanation": "Microsoft's six principles are fairness, reliability and safety, privacy and security, inclusiveness, transparency and accountability. Profitability and scalability are business or technical goals, not Responsible AI principles.",
+      "question_ar": "أيٌّ مما يلي من بين مبادئ الذكاء الاصطناعي المسؤول (Responsible AI) الستة لدى Microsoft؟ (اختر اثنتين.)",
+      "options_ar": {
+        "A": "الخصوصية والأمان (Privacy and security)",
+        "B": "الربحية (Profitability)",
+        "C": "قابلية التوسع (Scalability)",
+        "D": "الشمولية (Inclusiveness)"
+      },
+      "explanation_ar": "مبادئ Microsoft الستة هي: الإنصاف، والموثوقية والأمان، والخصوصية والأمان، والشمولية، والشفافية، والمساءلة. أما الربحية وقابلية التوسع فهي أهداف تجارية أو تقنية، وليست من مبادئ الذكاء الاصطناعي المسؤول."
     },
     {
       "uid": "ai900-012",
@@ -179,7 +270,16 @@
         "E": "Identifying the people and organizations mentioned in news articles"
       },
       "answer": ["A", "B", "E"],
-      "explanation": "Key phrase extraction, language detection and entity recognition all analyze written text, which makes them NLP workloads. Counting cars and classifying product photos are computer vision tasks."
+      "explanation": "Key phrase extraction, language detection and entity recognition all analyze written text, which makes them NLP workloads. Counting cars and classifying product photos are computer vision tasks.",
+      "question_ar": "يقيّم فريق دعم حلولًا للذكاء الاصطناعي. أيٌّ من المهام التالية تُعد من أحمال عمل معالجة اللغة الطبيعية (NLP)؟ (اختر ثلاث إجابات.)",
+      "options_ar": {
+        "A": "استخراج النقاط الرئيسية من تذاكر الدعم",
+        "B": "تحديد اللغة التي كُتبت بها كل رسالة بريد إلكتروني واردة",
+        "C": "عدّ السيارات في صورة لموقف سيارات",
+        "D": "تصنيف صور المنتجات إلى تالفة أو غير تالفة",
+        "E": "تحديد الأشخاص والمؤسسات المذكورة في المقالات الإخبارية"
+      },
+      "explanation_ar": "يحلل كلٌّ من استخراج العبارات الرئيسية (key phrase extraction) واكتشاف اللغة (language detection) والتعرف على الكيانات (entity recognition) نصوصًا مكتوبة، مما يجعلها من أحمال عمل معالجة اللغة الطبيعية. أما عدّ السيارات وتصنيف صور المنتجات فهما من مهام الرؤية الحاسوبية."
     },
     {
       "uid": "ai900-013",
@@ -192,7 +292,13 @@
       },
       "answer": ["A"],
       "shuffle": false,
-      "explanation": "Forecasting uses historical data to train a model that predicts future numeric values, which is a common machine learning prediction workload."
+      "explanation": "Forecasting uses historical data to train a model that predicts future numeric values, which is a common machine learning prediction workload.",
+      "question_ar": "العبارة: يُعد التنبؤ بالطلب على الكهرباء في مدينة ما خلال الربع القادم استنادًا إلى بيانات الاستهلاك التاريخية لعدة سنوات مثالًا على حمل عمل تنبؤ في التعلم الآلي (machine learning). هل هذه العبارة صحيحة؟",
+      "options_ar": {
+        "A": "نعم",
+        "B": "لا"
+      },
+      "explanation_ar": "يستخدم التنبؤ البيانات التاريخية لتدريب نموذج يتنبأ بقيم رقمية مستقبلية، وهذا حمل عمل شائع للتنبؤ في التعلم الآلي."
     },
     {
       "uid": "ai900-014",
@@ -205,7 +311,13 @@
       },
       "answer": ["B"],
       "shuffle": false,
-      "explanation": "Protecting personal data used by an AI system supports the privacy and security principle. Transparency is about people understanding how the system works and its limitations."
+      "explanation": "Protecting personal data used by an AI system supports the privacy and security principle. Transparency is about people understanding how the system works and its limitations.",
+      "question_ar": "العبارة: إن إزالة الأسماء والعناوين وأرقام الهوية الوطنية من مجموعة بيانات قبل استخدامها لتدريب نموذج تدعم في المقام الأول مبدأ الشفافية في الذكاء الاصطناعي المسؤول. هل هذه العبارة صحيحة؟",
+      "options_ar": {
+        "A": "نعم",
+        "B": "لا"
+      },
+      "explanation_ar": "تدعم حمايةُ البيانات الشخصية التي يستخدمها نظام الذكاء الاصطناعي مبدأَ الخصوصية والأمان. أما الشفافية فتتعلق بفهم الأشخاص لكيفية عمل النظام وحدوده."
     },
     {
       "uid": "ai900-015",
@@ -219,7 +331,15 @@
         "D": "Anomaly detection"
       },
       "answer": ["B"],
-      "explanation": "Regression predicts a numeric value, such as the number of cones sold, from input features."
+      "explanation": "Regression predicts a numeric value, such as the number of cones sold, from input features.",
+      "question_ar": "يريد متجر آيس كريم التنبؤ بعدد أقماع الآيس كريم التي سيبيعها كل يوم بناءً على درجة الحرارة المتوقعة ويوم الأسبوع. ما نوع التعلم الآلي الذي يجب أن يستخدمه؟",
+      "options_ar": {
+        "A": "التصنيف (classification)",
+        "B": "الانحدار (regression)",
+        "C": "التجميع (clustering)",
+        "D": "اكتشاف الحالات الشاذة (anomaly detection)"
+      },
+      "explanation_ar": "يتنبأ الانحدار بقيمة رقمية، مثل عدد الأقماع المبيعة، انطلاقًا من ميزات الإدخال (features)."
     },
     {
       "uid": "ai900-016",
@@ -233,7 +353,15 @@
         "D": "Multiclass classification"
       },
       "answer": ["C"],
-      "explanation": "Clustering is an unsupervised technique that groups items by similarity without needing known labels."
+      "explanation": "Clustering is an unsupervised technique that groups items by similarity without needing known labels.",
+      "question_ar": "يريد متجر تجزئة تقسيم عملائه إلى شرائح بناءً على تشابه سلوكهم الشرائي. ولا توجد في بياناته أسماء أو تسميات (labels) محددة مسبقًا للشرائح. ما نوع التعلم الآلي المناسب؟",
+      "options_ar": {
+        "A": "الانحدار (regression)",
+        "B": "التصنيف الثنائي (binary classification)",
+        "C": "التجميع (clustering)",
+        "D": "التصنيف متعدد الفئات (multiclass classification)"
+      },
+      "explanation_ar": "التجميع أسلوب من أساليب التعلم غير الخاضع للإشراف (unsupervised learning) يجمع العناصر حسب تشابهها دون الحاجة إلى تسميات معروفة."
     },
     {
       "uid": "ai900-017",
@@ -247,7 +375,15 @@
         "D": "Binary classification"
       },
       "answer": ["D"],
-      "explanation": "Binary classification predicts one of two possible classes, such as readmitted or not readmitted."
+      "explanation": "Binary classification predicts one of two possible classes, such as readmitted or not readmitted.",
+      "question_ar": "يريد أحد المستشفيات نموذجًا يتنبأ بما إذا كان المريض الذي غادر المستشفى سيُعاد إدخاله خلال 30 يومًا: نعم أم لا. ما نوع نموذج التعلم الآلي هذا؟",
+      "options_ar": {
+        "A": "الانحدار (regression)",
+        "B": "التجميع (clustering)",
+        "C": "التصنيف متعدد الفئات (multiclass classification)",
+        "D": "التصنيف الثنائي (binary classification)"
+      },
+      "explanation_ar": "يتنبأ التصنيف الثنائي بإحدى فئتين محتملتين، مثل \"أُعيد إدخاله\" أو \"لم يُعَد إدخاله\"."
     },
     {
       "uid": "ai900-018",
@@ -261,7 +397,15 @@
         "D": "A hyperparameter"
       },
       "answer": ["A"],
-      "explanation": "The label is the value the model learns to predict. Floor area, bedrooms and location are features used as inputs."
+      "explanation": "The label is the value the model learns to predict. Floor area, bedrooms and location are features used as inputs.",
+      "question_ar": "تقوم بتدريب نموذج للتنبؤ بأسعار المنازل. تحتوي مجموعة البيانات لديك على أعمدة للمساحة وعدد غرف النوم والموقع وسعر البيع. ماذا يمثل عمود سعر البيع في بيانات التدريب هذه؟",
+      "options_ar": {
+        "A": "التسمية (label)",
+        "B": "ميزة (feature)",
+        "C": "مجموعة (cluster)",
+        "D": "معامل فائق (hyperparameter)"
+      },
+      "explanation_ar": "التسمية هي القيمة التي يتعلم النموذج التنبؤ بها. أما المساحة وعدد غرف النوم والموقع فهي ميزات تُستخدم كمدخلات."
     },
     {
       "uid": "ai900-019",
@@ -275,7 +419,15 @@
         "D": "Area under the curve (AUC)"
       },
       "answer": ["B"],
-      "explanation": "Predicting a number is a regression task, and RMSE measures the typical size of the prediction errors. Precision, recall and AUC are classification metrics."
+      "explanation": "Predicting a number is a regression task, and RMSE measures the typical size of the prediction errors. Precision, recall and AUC are classification metrics.",
+      "question_ar": "قمت بتدريب نموذج يتنبأ بوقت توصيل الطرود بالساعات. ما المقياس المناسب لتقييم هذا النموذج؟",
+      "options_ar": {
+        "A": "الإحكام (precision)",
+        "B": "جذر متوسط مربع الخطأ (RMSE)",
+        "C": "الاستدعاء (recall)",
+        "D": "المساحة تحت المنحنى (AUC)"
+      },
+      "explanation_ar": "التنبؤ برقم هو مهمة انحدار (regression)، ويقيس RMSE الحجم المعتاد لأخطاء التنبؤ. أما الإحكام والاستدعاء وAUC فهي مقاييس للتصنيف."
     },
     {
       "uid": "ai900-020",
@@ -289,7 +441,15 @@
         "D": "To have the data labeled automatically"
       },
       "answer": ["C"],
-      "explanation": "Validation data is kept separate so the trained model can be tested on unseen data, which shows whether it generalizes or has overfitted to the training data."
+      "explanation": "Validation data is kept separate so the trained model can be tested on unseen data, which shows whether it generalizes or has overfitted to the training data.",
+      "question_ar": "لماذا يحتفظ علماء البيانات بجزء من بياناتهم المسمّاة كمجموعة تحقق (validation set) بدلًا من استخدامها كلها في التدريب؟",
+      "options_ar": {
+        "A": "لتقليل الوقت اللازم لتدريب النموذج إلى النصف",
+        "B": "للسماح للنموذج باستخدام مزيد من الميزات أثناء التدريب",
+        "C": "لتقييم مدى جودة أداء النموذج على بيانات لم يرها أثناء التدريب",
+        "D": "لتسمية البيانات تلقائيًا"
+      },
+      "explanation_ar": "تُحفظ بيانات التحقق منفصلة حتى يمكن اختبار النموذج المدرَّب على بيانات لم يرها من قبل، مما يوضح ما إذا كان قادرًا على التعميم أم أنه وقع في الإفراط في الملاءمة (overfitting) مع بيانات التدريب."
     },
     {
       "uid": "ai900-021",
@@ -304,7 +464,15 @@
       },
       "answer": ["D"],
       "explanation": "Automated ML iterates over combinations of algorithms, featurization and hyperparameters and ranks the resulting models by the chosen metric.",
-      "reference": "https://learn.microsoft.com/en-us/azure/machine-learning/concept-automated-ml"
+      "reference": "https://learn.microsoft.com/en-us/azure/machine-learning/concept-automated-ml",
+      "question_ar": "يريد محلل أعمال ذو خبرة محدودة في علم البيانات أن يجرّب Azure Machine Learning العديد من الخوارزميات وتركيبات المعاملات الفائقة (hyperparameters) تلقائيًا، وأن يبلّغ عن النموذج الأفضل أداءً لمجموعة بيانات. ما الإمكانية التي يجب أن يستخدمها؟",
+      "options_ar": {
+        "A": "Azure Machine Learning designer",
+        "B": "مثيل حوسبة (compute instance)",
+        "C": "تسمية البيانات (data labeling)",
+        "D": "التعلم الآلي التلقائي (automated ML)"
+      },
+      "explanation_ar": "يمرّ automated ML على تركيبات من الخوارزميات وهندسة الميزات (featurization) والمعاملات الفائقة، ويرتّب النماذج الناتجة وفقًا للمقياس المختار."
     },
     {
       "uid": "ai900-022",
@@ -319,7 +487,15 @@
       },
       "answer": ["A"],
       "explanation": "Azure Machine Learning designer provides a drag-and-drop canvas for building, training and deploying pipelines visually.",
-      "reference": "https://learn.microsoft.com/en-us/azure/machine-learning/concept-designer"
+      "reference": "https://learn.microsoft.com/en-us/azure/machine-learning/concept-designer",
+      "question_ar": "تريد إنشاء مسار (pipeline) لتدريب نموذج تعلم آلي عن طريق سحب مصادر البيانات ومكونات المعالجة إلى لوحة مرئية وربطها ببعضها، دون كتابة تعليمات برمجية. ما ميزة Azure Machine Learning التي يجب أن تستخدمها؟",
+      "options_ar": {
+        "A": "Azure Machine Learning designer",
+        "B": "Azure AI Language",
+        "C": "دفاتر Jupyter (Jupyter notebooks)",
+        "D": "واجهة سطر الأوامر (CLI) الخاصة بـ Azure Machine Learning"
+      },
+      "explanation_ar": "يوفر Azure Machine Learning designer لوحة بالسحب والإفلات لإنشاء المسارات وتدريبها ونشرها بشكل مرئي."
     },
     {
       "uid": "ai900-023",
@@ -333,7 +509,15 @@
         "D": "0.90"
       },
       "answer": ["B"],
-      "explanation": "Precision = TP / (TP + FP) = 80 / (80 + 20) = 0.80. Recall would be 80 / 90 = 0.89 and accuracy would be 170 / 200 = 0.85."
+      "explanation": "Precision = TP / (TP + FP) = 80 / (80 + 20) = 0.80. Recall would be 80 / 90 = 0.89 and accuracy would be 170 / 200 = 0.85.",
+      "question_ar": "يُقيَّم نموذج لاكتشاف الاحتيال على 200 معاملة. تُظهر مصفوفة الارتباك (confusion matrix) 80 نتيجة إيجابية صحيحة، و20 نتيجة إيجابية خاطئة، و10 نتائج سلبية خاطئة، و90 نتيجة سلبية صحيحة. ما قيمة الإحكام (precision) لهذا النموذج؟",
+      "options_ar": {
+        "A": "0.89",
+        "B": "0.80",
+        "C": "0.85",
+        "D": "0.90"
+      },
+      "explanation_ar": "الإحكام = TP / (TP + FP) = 80 / (80 + 20) = 0.80. أما الاستدعاء (recall) فسيكون 80 / 90 = 0.89، والدقة (accuracy) ستكون 170 / 200 = 0.85."
     },
     {
       "uid": "ai900-024",
@@ -347,7 +531,15 @@
         "D": "A technique that produces predictions without any training data"
       },
       "answer": ["C"],
-      "explanation": "Deep learning is a subset of machine learning based on multi-layer artificial neural networks, which underpin modern computer vision, speech and language models."
+      "explanation": "Deep learning is a subset of machine learning based on multi-layer artificial neural networks, which underpin modern computer vision, speech and language models.",
+      "question_ar": "ما العبارة التي تصف التعلم العميق (deep learning) على أفضل نحو؟",
+      "options_ar": {
+        "A": "مجموعة من قواعد \"إذا-فإن\" المكتوبة يدويًا والتي ينشئها خبراء المجال",
+        "B": "أسلوب يُستخدم فقط لتجميع البيانات غير المسمّاة في مجموعات",
+        "C": "شكل من أشكال التعلم الآلي يستخدم شبكات عصبية اصطناعية متعددة الطبقات",
+        "D": "أسلوب يُنتج تنبؤات دون أي بيانات تدريب"
+      },
+      "explanation_ar": "التعلم العميق مجموعة فرعية من التعلم الآلي تعتمد على شبكات عصبية اصطناعية متعددة الطبقات، وهي الأساس الذي تقوم عليه نماذج الرؤية الحاسوبية والكلام واللغة الحديثة."
     },
     {
       "uid": "ai900-025",
@@ -361,7 +553,15 @@
         "D": "The attention mechanism"
       },
       "answer": ["D"],
-      "explanation": "Attention (self-attention) lets a transformer calculate how relevant each token is to every other token, which captures context across the whole input."
+      "explanation": "Attention (self-attention) lets a transformer calculate how relevant each token is to every other token, which captures context across the whole input.",
+      "question_ar": "تعتمد النماذج اللغوية الكبيرة (LLMs) على بنية المحوّل (transformer). ما الأسلوب الذي يتيح للمحوّل تقدير مدى ارتباط كل رمز مميز (token) في تسلسل ما بالرموز المميزة الأخرى؟",
+      "options_ar": {
+        "A": "تقسيم شجرة القرار (decision tree splitting)",
+        "B": "تعيين النقاط المركزية في K-means",
+        "C": "الانحدار الخطي (linear regression)",
+        "D": "آلية الانتباه (attention mechanism)"
+      },
+      "explanation_ar": "تتيح آلية الانتباه (الانتباه الذاتي - self-attention) للمحوّل حساب مدى صلة كل رمز مميز بكل رمز مميز آخر، مما يلتقط السياق عبر المدخلات بأكملها."
     },
     {
       "uid": "ai900-026",
@@ -376,7 +576,16 @@
         "E": "Recall"
       },
       "answer": ["B", "E"],
-      "explanation": "Precision and recall are classification metrics derived from the confusion matrix. MAE, R² and RMSE evaluate regression models."
+      "explanation": "Precision and recall are classification metrics derived from the confusion matrix. MAE, R² and RMSE evaluate regression models.",
+      "question_ar": "قمت بتدريب نموذج يصنّف رسائل البريد الإلكتروني الخاصة بالدعم إلى عاجلة أو غير عاجلة. ما المقاييس التي يجب أن تستخدمها لتقييمه؟ (اختر اثنتين.)",
+      "options_ar": {
+        "A": "متوسط الخطأ المطلق (MAE)",
+        "B": "الإحكام (precision)",
+        "C": "معامل التحديد (R²)",
+        "D": "جذر متوسط مربع الخطأ (RMSE)",
+        "E": "الاستدعاء (recall)"
+      },
+      "explanation_ar": "الإحكام والاستدعاء مقياسان للتصنيف مشتقان من مصفوفة الارتباك (confusion matrix). أما MAE وR² وRMSE فتُستخدم لتقييم نماذج الانحدار."
     },
     {
       "uid": "ai900-027",
@@ -390,7 +599,15 @@
         "D": "Classification"
       },
       "answer": ["B", "D"],
-      "explanation": "Regression and classification are supervised because they learn from data that includes known labels. Clustering and principal component analysis work on unlabeled data and are unsupervised."
+      "explanation": "Regression and classification are supervised because they learn from data that includes known labels. Clustering and principal component analysis work on unlabeled data and are unsupervised.",
+      "question_ar": "أيٌّ مما يلي من أساليب التعلم الآلي الخاضع للإشراف (supervised learning)؟ (اختر اثنتين.)",
+      "options_ar": {
+        "A": "التجميع (clustering)",
+        "B": "الانحدار (regression)",
+        "C": "تحليل المكونات الرئيسية (تقليل الأبعاد)",
+        "D": "التصنيف (classification)"
+      },
+      "explanation_ar": "الانحدار والتصنيف أسلوبان خاضعان للإشراف لأنهما يتعلمان من بيانات تتضمن تسميات (labels) معروفة. أما التجميع وتحليل المكونات الرئيسية فيعملان على بيانات غير مسمّاة، وهما من أساليب التعلم غير الخاضع للإشراف."
     },
     {
       "uid": "ai900-028",
@@ -406,7 +623,16 @@
       },
       "answer": ["A", "C", "D"],
       "explanation": "An Azure Machine Learning workspace manages compute (such as clusters), data assets, models and endpoints for deployment. Translator and the Language sentiment API are separate prebuilt Azure AI services.",
-      "reference": "https://learn.microsoft.com/en-us/azure/machine-learning/overview-what-is-azure-machine-learning"
+      "reference": "https://learn.microsoft.com/en-us/azure/machine-learning/overview-what-is-azure-machine-learning",
+      "question_ar": "يُنشئ فريقك مساحة عمل (workspace) في Azure Machine Learning لتدريب نماذج مخصصة وتقديمها. أيٌّ مما يلي يمكنك إنشاؤه واستخدامه داخل مساحة العمل؟ (اختر ثلاث إجابات.)",
+      "options_ar": {
+        "A": "مجموعات حوسبة (compute clusters) لتدريب النماذج بشكل قابل للتوسع",
+        "B": "نقطة نهاية مُعدّة مسبقًا لترجمة المستندات في Azure AI Translator",
+        "C": "نقاط نهاية مُدارة عبر الإنترنت (managed online endpoints) للاستدلال في الوقت الفعلي",
+        "D": "أصول بيانات مسجّلة (data assets) يمكن إعادة استخدامها عبر التجارب",
+        "E": "واجهة API المُعدّة مسبقًا لتحليل المشاعر في Azure AI Language"
+      },
+      "explanation_ar": "تدير مساحة عمل Azure Machine Learning موارد الحوسبة (مثل المجموعات) وأصول البيانات والنماذج ونقاط النهاية الخاصة بالنشر. أما Translator وواجهة API لتحليل المشاعر في Language فهما خدمتان منفصلتان مُعدّتان مسبقًا من خدمات Azure AI."
     },
     {
       "uid": "ai900-029",
@@ -419,7 +645,13 @@
       },
       "answer": ["A"],
       "shuffle": false,
-      "explanation": "Features are the input values used to make a prediction. The words in the email are inputs, and spam or not spam is the label."
+      "explanation": "Features are the input values used to make a prediction. The words in the email are inputs, and spam or not spam is the label.",
+      "question_ar": "العبارة: في نموذج يتنبأ بما إذا كانت رسالة البريد الإلكتروني عشوائية (spam)، تُعد الكلمات التي تظهر في كل رسالة ميزات (features). هل هذه العبارة صحيحة؟",
+      "options_ar": {
+        "A": "نعم",
+        "B": "لا"
+      },
+      "explanation_ar": "الميزات هي قيم الإدخال المستخدمة لإجراء التنبؤ. والكلمات الواردة في الرسالة هي مدخلات، أما كونها عشوائية أو غير عشوائية فهو التسمية (label)."
     },
     {
       "uid": "ai900-030",
@@ -432,7 +664,13 @@
       },
       "answer": ["B"],
       "shuffle": false,
-      "explanation": "R² closer to 1 means the model explains more of the variance in the label. A value near 0 means the model explains very little of it."
+      "explanation": "R² closer to 1 means the model explains more of the variance in the label. A value near 0 means the model explains very little of it.",
+      "question_ar": "العبارة: تشير قيمة R² (معامل التحديد) الأقرب إلى 0 إلى أن نموذج الانحدار يفسّر قدرًا أكبر من التباين في البيانات. هل هذه العبارة صحيحة؟",
+      "options_ar": {
+        "A": "نعم",
+        "B": "لا"
+      },
+      "explanation_ar": "تعني قيمة R² الأقرب إلى 1 أن النموذج يفسّر قدرًا أكبر من التباين في التسمية. أما القيمة القريبة من 0 فتعني أن النموذج يفسّر القليل جدًا منه."
     },
     {
       "uid": "ai900-031",
@@ -446,7 +684,15 @@
         "D": "Optical character recognition (OCR)"
       },
       "answer": ["A"],
-      "explanation": "Object detection identifies multiple objects in an image and returns a class and bounding box for each one."
+      "explanation": "Object detection identifies multiple objects in an image and returns a class and bounding box for each one.",
+      "question_ar": "تريد إدارة المرور في إحدى المدن تحديد موقع كل مركبة في صورة من كاميرا مرور ورسم مربع إحاطة (bounding box) حول كل منها. ما أسلوب الرؤية الحاسوبية المطلوب؟",
+      "options_ar": {
+        "A": "اكتشاف الكائنات (object detection)",
+        "B": "تصنيف الصور (image classification)",
+        "C": "التقسيم الدلالي (semantic segmentation)",
+        "D": "التعرف الضوئي على الحروف (OCR)"
+      },
+      "explanation_ar": "يحدد اكتشاف الكائنات عدة كائنات في الصورة ويُرجع فئة ومربع إحاطة لكل منها."
     },
     {
       "uid": "ai900-032",
@@ -460,7 +706,15 @@
         "D": "Facial detection"
       },
       "answer": ["B"],
-      "explanation": "Semantic segmentation classifies each pixel in an image, producing a precise mask of each region rather than a bounding box."
+      "explanation": "Semantic segmentation classifies each pixel in an image, producing a precise mask of each region rather than a bounding box.",
+      "question_ar": "يحتاج فريق للتصوير الطبي إلى نموذج يصنّف كل بكسل على حدة في صورة الفحص إما كنسيج ورمي أو كنسيج سليم. ما أسلوب الرؤية الحاسوبية هذا؟",
+      "options_ar": {
+        "A": "اكتشاف الكائنات (object detection)",
+        "B": "التقسيم الدلالي (semantic segmentation)",
+        "C": "تصنيف الصور (image classification)",
+        "D": "اكتشاف الوجوه (facial detection)"
+      },
+      "explanation_ar": "يصنّف التقسيم الدلالي كل بكسل في الصورة، فينتج قناعًا (mask) دقيقًا لكل منطقة بدلًا من مربع إحاطة."
     },
     {
       "uid": "ai900-033",
@@ -474,7 +728,15 @@
         "D": "Optical character recognition (OCR)"
       },
       "answer": ["C"],
-      "explanation": "Image classification assigns a label to the image as a whole, without locating individual objects within it."
+      "explanation": "Image classification assigns a label to the image as a whole, without locating individual objects within it.",
+      "question_ar": "تصوّر شركة شحن كل طرد عند وصوله، وتحتاج إلى تعيين تسمية واحدة لكل صورة: \"تالف\" أو \"غير تالف\". ما أسلوب الرؤية الحاسوبية الذي يجب أن تستخدمه؟",
+      "options_ar": {
+        "A": "اكتشاف الكائنات (object detection)",
+        "B": "التقسيم الدلالي (semantic segmentation)",
+        "C": "تصنيف الصور (image classification)",
+        "D": "التعرف الضوئي على الحروف (OCR)"
+      },
+      "explanation_ar": "يعيّن تصنيف الصور تسمية للصورة ككل، دون تحديد مواقع الكائنات الفردية داخلها."
     },
     {
       "uid": "ai900-034",
@@ -489,7 +751,15 @@
       },
       "answer": ["D"],
       "explanation": "The Read OCR feature in Azure AI Vision extracts printed and handwritten text from images and returns it with its position.",
-      "reference": "https://learn.microsoft.com/en-us/azure/ai-services/computer-vision/overview"
+      "reference": "https://learn.microsoft.com/en-us/azure/ai-services/computer-vision/overview",
+      "question_ar": "تحتاج إلى استخراج أسطر من النص المطبوع والمكتوب بخط اليد من صور السبورات البيضاء ولافتات المتاجر. ما إمكانية Azure AI التي يجب أن تستخدمها؟",
+      "options_ar": {
+        "A": "اكتشاف الكائنات في Azure AI Custom Vision",
+        "B": "اكتشاف الوجوه في Azure AI Face",
+        "C": "Azure AI Translator",
+        "D": "ميزة Read (OCR) في Azure AI Vision"
+      },
+      "explanation_ar": "تستخرج ميزة Read للتعرف الضوئي على الحروف (OCR) في Azure AI Vision النص المطبوع والمكتوب بخط اليد من الصور، وتُرجعه مع موضعه."
     },
     {
       "uid": "ai900-035",
@@ -504,7 +774,15 @@
       },
       "answer": ["A"],
       "explanation": "Azure AI Custom Vision trains image classification or object detection models on your own labeled images, which is needed for classes that prebuilt models do not know.",
-      "reference": "https://learn.microsoft.com/en-us/azure/ai-services/custom-vision-service/overview"
+      "reference": "https://learn.microsoft.com/en-us/azure/ai-services/custom-vision-service/overview",
+      "question_ar": "تبيع شركة 30 منتجًا خاصًا بها لا يتعرف عليها أي نموذج مُعدّ مسبقًا. ولديها صور مسمّاة لكل منتج، وتريد تدريب نموذج يحدد المنتج الذي يظهر في الصورة بأقل قدر من البرمجة. ما الخدمة التي يجب أن تستخدمها؟",
+      "options_ar": {
+        "A": "Azure AI Custom Vision",
+        "B": "ميزة وضع العلامات (tagging) المُعدّة مسبقًا في تحليل الصور بخدمة Azure AI Vision",
+        "C": "Azure AI Face",
+        "D": "Azure AI Content Safety"
+      },
+      "explanation_ar": "تدرّب خدمة Azure AI Custom Vision نماذج لتصنيف الصور أو اكتشاف الكائنات على صورك المسمّاة، وهو أمر ضروري للفئات التي لا تعرفها النماذج المُعدّة مسبقًا."
     },
     {
       "uid": "ai900-036",
@@ -518,7 +796,15 @@
         "D": "Azure AI Custom Vision object detection"
       },
       "answer": ["B"],
-      "explanation": "Azure AI Vision image analysis can generate captions and tags that describe an image using prebuilt models."
+      "explanation": "Azure AI Vision image analysis can generate captions and tags that describe an image using prebuilt models.",
+      "question_ar": "يريد موقع لمشاركة الصور إنشاء جملة مقروءة للبشر تصف كل صورة يتم تحميلها، مثل \"شخص يركب دراجة في شارع بالمدينة\"، لاستخدامها كنص بديل (alternative text). ولا ينبغي أن تكون هناك حاجة إلى أي تدريب مخصص. ما الخدمة التي يجب أن يستخدمها؟",
+      "options_ar": {
+        "A": "Azure AI Face",
+        "B": "تحليل الصور (image analysis) في Azure AI Vision",
+        "C": "Azure AI Document Intelligence",
+        "D": "اكتشاف الكائنات في Azure AI Custom Vision"
+      },
+      "explanation_ar": "يمكن لتحليل الصور في Azure AI Vision إنشاء تسميات توضيحية (captions) وعلامات (tags) تصف الصورة باستخدام نماذج مُعدّة مسبقًا."
     },
     {
       "uid": "ai900-037",
@@ -532,7 +818,15 @@
         "D": "Optical character recognition"
       },
       "answer": ["C"],
-      "explanation": "Face detection finds the location of human faces in an image and returns bounding boxes, which is enough to blur them. Identification and verification match faces to identities and are not needed."
+      "explanation": "Face detection finds the location of human faces in an image and returns bounding boxes, which is enough to blur them. Identification and verification match faces to identities and are not needed.",
+      "question_ar": "ينشر متجر تجزئة صورًا من فعاليات تُقام داخل المتجر، ويجب عليه تمويه وجه كل زائر قبل النشر. ولا يحتاج إلى معرفة هوية أي شخص. ما الإمكانية المطلوبة؟",
+      "options_ar": {
+        "A": "تحديد هوية الوجه (facial identification)",
+        "B": "التحقق من الوجه (facial verification)",
+        "C": "اكتشاف الوجوه (face detection)",
+        "D": "التعرف الضوئي على الحروف (OCR)"
+      },
+      "explanation_ar": "يعثر اكتشاف الوجوه على مواقع الوجوه البشرية في الصورة ويُرجع مربعات الإحاطة، وهذا يكفي لتمويهها. أما تحديد الهوية والتحقق فيطابقان الوجوه مع الهويات، وليسا مطلوبين هنا."
     },
     {
       "uid": "ai900-038",
@@ -547,7 +841,15 @@
       },
       "answer": ["D"],
       "explanation": "Facial recognition features such as identification and verification are Limited Access. Microsoft retired the inference of emotion, gender and age from Face.",
-      "reference": "https://learn.microsoft.com/en-us/azure/ai-services/face/overview-identity"
+      "reference": "https://learn.microsoft.com/en-us/azure/ai-services/face/overview-identity",
+      "question_ar": "ما العبارة حول Azure AI Face التي تعكس سياسة Microsoft الحالية للذكاء الاصطناعي المسؤول؟",
+      "options_ar": {
+        "A": "يمكن لأي عميل في Azure استخدام تحديد هوية الوجه دون قيود.",
+        "B": "يمكن لخدمة Face استنتاج الحالة العاطفية لشخص ما من صورة وجهه.",
+        "C": "تُرجع خدمة Face الجنس والعمر المتوقعين لكل وجه يتم اكتشافه.",
+        "D": "تحديد هوية الوجه والتحقق منه ميزتان ذواتا وصول محدود (Limited Access) تتطلبان تقديم طلب والحصول على موافقة من Microsoft."
+      },
+      "explanation_ar": "تخضع ميزات التعرف على الوجه، مثل تحديد الهوية والتحقق، للوصول المحدود (Limited Access). وقد أوقفت Microsoft استنتاج المشاعر والجنس والعمر من خدمة Face."
     },
     {
       "uid": "ai900-039",
@@ -561,7 +863,15 @@
         "D": "Azure AI Content Safety"
       },
       "answer": ["A"],
-      "explanation": "Face detection in Azure AI Face returns a bounding box for each face and can return attributes such as head pose, glasses, blur and occlusion, without identifying the person."
+      "explanation": "Face detection in Azure AI Face returns a bounding box for each face and can return attributes such as head pose, glasses, blur and occlusion, without identifying the person.",
+      "question_ar": "يجب أن يرفض كشك للتصوير الصور غير المناسبة لبطاقات الهوية. ولكل وجه في الصورة، يحتاج إلى موقع الوجه بالإضافة إلى سمات مثل وضعية الرأس والضبابية والانسداد (occlusion) وما إذا كان الشخص يرتدي نظارات. ما الخدمة التي توفر ذلك؟",
+      "options_ar": {
+        "A": "اكتشاف الوجوه في Azure AI Face",
+        "B": "تصنيف الصور في Azure AI Custom Vision",
+        "C": "ميزة Read (OCR) في Azure AI Vision",
+        "D": "Azure AI Content Safety"
+      },
+      "explanation_ar": "يُرجع اكتشاف الوجوه في Azure AI Face مربع إحاطة لكل وجه، ويمكنه إرجاع سمات مثل وضعية الرأس والنظارات والضبابية والانسداد، دون تحديد هوية الشخص."
     },
     {
       "uid": "ai900-040",
@@ -574,7 +884,14 @@
         "C": "Image classification (multilabel)"
       },
       "answer": ["B"],
-      "explanation": "Object detection returns the location of each instance of an object, so it can find multiple defects on one board. Classification only labels the image as a whole."
+      "explanation": "Object detection returns the location of each instance of an object, so it can find multiple defects on one board. Classification only labels the image as a whole.",
+      "question_ar": "تُنشئ مشروعًا في Azure AI Custom Vision للعثور على كل عيب لحام وتحديد موقعه في صور لوحات الدوائر الإلكترونية، حيث يمكن أن تحتوي اللوحة الواحدة على عدة عيوب. ما نوع المشروع الذي يجب أن تختاره؟",
+      "options_ar": {
+        "A": "تصنيف الصور (متعدد الفئات - multiclass)",
+        "B": "اكتشاف الكائنات (object detection)",
+        "C": "تصنيف الصور (متعدد التسميات - multilabel)"
+      },
+      "explanation_ar": "يُرجع اكتشاف الكائنات موقع كل مثيل للكائن، لذا يمكنه العثور على عدة عيوب في لوحة واحدة. أما التصنيف فيسمّي الصورة ككل فقط."
     },
     {
       "uid": "ai900-041",
@@ -588,7 +905,15 @@
         "D": "Translate spoken audio into another language"
       },
       "answer": ["A", "C"],
-      "explanation": "Azure AI Vision provides prebuilt OCR, captioning and tagging. Recognizing proprietary parts needs a custom-trained model, and translating speech is an Azure AI Speech feature."
+      "explanation": "Azure AI Vision provides prebuilt OCR, captioning and tagging. Recognizing proprietary parts needs a custom-trained model, and translating speech is an Azure AI Speech feature.",
+      "question_ar": "ما المهام التي يمكن لـ Azure AI Vision تنفيذها باستخدام نماذج مُعدّة مسبقًا، دون تدريب نموذج مخصص؟ (اختر اثنتين.)",
+      "options_ar": {
+        "A": "قراءة النص المطبوع والمكتوب بخط اليد في صورة",
+        "B": "التعرف على قطع الآلات الخاصة بشركة ما من خلال أرقام القطع الداخلية الخاصة بها",
+        "C": "إنشاء تسميات توضيحية (captions) وعلامات (tags) تصف الصورة",
+        "D": "ترجمة الصوت المنطوق إلى لغة أخرى"
+      },
+      "explanation_ar": "يوفر Azure AI Vision إمكانات مُعدّة مسبقًا للتعرف الضوئي على الحروف (OCR) وإنشاء التسميات التوضيحية ووضع العلامات. أما التعرف على القطع الخاصة فيتطلب نموذجًا مدرّبًا خصيصًا، وترجمة الكلام ميزة في Azure AI Speech."
     },
     {
       "uid": "ai900-042",
@@ -602,7 +927,15 @@
         "D": "Returning the head pose of a detected face"
       },
       "answer": ["B", "C"],
-      "explanation": "Identification (who is this among a group of people) and verification (are these two faces the same person) are facial recognition and require Limited Access approval. Detecting faces and their head pose does not identify anyone."
+      "explanation": "Identification (who is this among a group of people) and verification (are these two faces the same person) are facial recognition and require Limited Access approval. Detecting faces and their head pose does not identify anyone.",
+      "question_ar": "ما إمكانات Azure AI Face التي تُعد من ميزات التعرف على الوجه وتخضع للوصول المحدود (Limited Access)؟ (اختر اثنتين.)",
+      "options_ar": {
+        "A": "اكتشاف مواقع الوجوه في الصورة",
+        "B": "تحديد هوية الوجه (مطابقة واحد إلى متعدد)",
+        "C": "التحقق من الوجه (مطابقة واحد إلى واحد)",
+        "D": "إرجاع وضعية الرأس لوجه تم اكتشافه"
+      },
+      "explanation_ar": "تحديد الهوية (من هذا الشخص من بين مجموعة من الأشخاص) والتحقق (هل هذان الوجهان لنفس الشخص) من ميزات التعرف على الوجه، ويتطلبان موافقة على الوصول المحدود. أما اكتشاف الوجوه ووضعية الرأس فلا يحدد هوية أي شخص."
     },
     {
       "uid": "ai900-043",
@@ -615,7 +948,13 @@
       },
       "answer": ["A"],
       "shuffle": false,
-      "explanation": "The Read OCR feature supports both printed text and handwritten text for supported languages."
+      "explanation": "The Read OCR feature supports both printed text and handwritten text for supported languages.",
+      "question_ar": "العبارة: يمكن لإمكانية التعرف الضوئي على الحروف (OCR) في Azure AI Vision استخراج النص المكتوب بخط اليد إلى جانب النص المطبوع من الصور. هل هذه العبارة صحيحة؟",
+      "options_ar": {
+        "A": "نعم",
+        "B": "لا"
+      },
+      "explanation_ar": "تدعم ميزة Read للتعرف الضوئي على الحروف كلًا من النص المطبوع والنص المكتوب بخط اليد في اللغات المدعومة."
     },
     {
       "uid": "ai900-044",
@@ -628,7 +967,13 @@
       },
       "answer": ["B"],
       "shuffle": false,
-      "explanation": "Image classification assigns labels to the whole image. Returning bounding boxes for individual objects is object detection."
+      "explanation": "Image classification assigns labels to the whole image. Returning bounding boxes for individual objects is object detection.",
+      "question_ar": "العبارة: يُرجع نموذج تصنيف الصور (image classification) إحداثيات مربع الإحاطة لكل كائن يعثر عليه في الصورة. هل هذه العبارة صحيحة؟",
+      "options_ar": {
+        "A": "نعم",
+        "B": "لا"
+      },
+      "explanation_ar": "يعيّن تصنيف الصور تسميات للصورة بأكملها. أما إرجاع مربعات الإحاطة للكائنات الفردية فهو اكتشاف الكائنات (object detection)."
     },
     {
       "uid": "ai900-045",
@@ -643,7 +988,15 @@
       },
       "answer": ["C"],
       "explanation": "Sentiment analysis returns positive, negative, neutral or mixed labels with confidence scores for documents and sentences.",
-      "reference": "https://learn.microsoft.com/en-us/azure/ai-services/language-service/overview"
+      "reference": "https://learn.microsoft.com/en-us/azure/ai-services/language-service/overview",
+      "question_ar": "تريد سلسلة فنادق أن تحدد تلقائيًا ما إذا كانت كل مراجعة من مراجعات النزلاء إيجابية أو سلبية أو محايدة أو مختلطة. ما ميزة Azure AI Language التي يجب أن تستخدمها؟",
+      "options_ar": {
+        "A": "استخراج العبارات الرئيسية (key phrase extraction)",
+        "B": "التعرف على الكيانات المسماة (named entity recognition)",
+        "C": "تحليل المشاعر (sentiment analysis)",
+        "D": "اكتشاف اللغة (language detection)"
+      },
+      "explanation_ar": "يُرجع تحليل المشاعر تسميات إيجابية أو سلبية أو محايدة أو مختلطة مع درجات ثقة للمستندات والجمل."
     },
     {
       "uid": "ai900-046",
@@ -657,7 +1010,15 @@
         "D": "Key phrase extraction"
       },
       "answer": ["D"],
-      "explanation": "Key phrase extraction returns the main concepts and talking points in a piece of text."
+      "explanation": "Key phrase extraction returns the main concepts and talking points in a piece of text.",
+      "question_ar": "يريد مكتب مساعدة الحصول على قائمة بالموضوعات الرئيسية المذكورة في كل تذكرة دعم، مثل \"برنامج تشغيل الطابعة\" أو \"اتصال VPN\"، ليتمكن من رؤية الموضوعات المتكررة. ما ميزة Azure AI Language التي يجب أن يستخدمها؟",
+      "options_ar": {
+        "A": "تحليل المشاعر (sentiment analysis)",
+        "B": "اكتشاف معلومات التعريف الشخصية (PII detection)",
+        "C": "اكتشاف اللغة (language detection)",
+        "D": "استخراج العبارات الرئيسية (key phrase extraction)"
+      },
+      "explanation_ar": "يُرجع استخراج العبارات الرئيسية المفاهيم الأساسية والنقاط الرئيسية في النص."
     },
     {
       "uid": "ai900-047",
@@ -671,7 +1032,15 @@
         "D": "Azure AI Translator"
       },
       "answer": ["A"],
-      "explanation": "PII detection, part of entity recognition in Azure AI Language, identifies sensitive information such as phone numbers and card numbers and can return a redacted version of the text."
+      "explanation": "PII detection, part of entity recognition in Azure AI Language, identifies sensitive information such as phone numbers and card numbers and can return a redacted version of the text.",
+      "question_ar": "قبل تخزين نصوص المحادثات لأغراض التحليلات، يجب على شركة العثور على أرقام الهواتف وعناوين البريد الإلكتروني وأرقام بطاقات الائتمان في النص وتنقيحها (حجبها). ما الإمكانية التي يجب أن تستخدمها؟",
+      "options_ar": {
+        "A": "اكتشاف معلومات التعريف الشخصية (PII) في Azure AI Language",
+        "B": "استخراج العبارات الرئيسية في Azure AI Language",
+        "C": "اكتشاف اللغة في Azure AI Language",
+        "D": "Azure AI Translator"
+      },
+      "explanation_ar": "يحدد اكتشاف معلومات التعريف الشخصية (PII)، وهو جزء من التعرف على الكيانات في Azure AI Language، المعلومات الحساسة مثل أرقام الهواتف وأرقام البطاقات، ويمكنه إرجاع نسخة منقّحة من النص."
     },
     {
       "uid": "ai900-048",
@@ -685,7 +1054,15 @@
         "D": "Azure AI Translator"
       },
       "answer": ["B"],
-      "explanation": "Conversational language understanding, the successor to LUIS, is trained to predict intents and extract entities from user utterances."
+      "explanation": "Conversational language understanding, the successor to LUIS, is trained to predict intents and extract entities from user utterances.",
+      "question_ar": "تبني شركة سفر تطبيقًا يجب أن يفهم طلبات مثل \"احجز لي رحلة طيران إلى الرياض يوم الاثنين القادم\"، بحيث يتعرف على نية المستخدم (intent) (حجز رحلة طيران) ويستخرج الكيانات (entities) مثل الوجهة والتاريخ. ما ميزة Azure AI Language التي يجب أن تستخدمها؟",
+      "options_ar": {
+        "A": "الإجابة عن الأسئلة المخصصة (custom question answering)",
+        "B": "فهم لغة المحادثة (CLU)",
+        "C": "تحليل المشاعر (sentiment analysis)",
+        "D": "Azure AI Translator"
+      },
+      "explanation_ar": "يتم تدريب فهم لغة المحادثة (conversational language understanding)، وهو خليفة LUIS، للتنبؤ بالنوايا (intents) واستخراج الكيانات من عبارات المستخدم (utterances)."
     },
     {
       "uid": "ai900-049",
@@ -699,7 +1076,15 @@
         "D": "Text to speech"
       },
       "answer": ["C"],
-      "explanation": "Custom question answering, the successor to QnA Maker, builds a knowledge base of question-and-answer pairs from sources such as FAQ documents and URLs."
+      "explanation": "Custom question answering, the successor to QnA Maker, builds a knowledge base of question-and-answer pairs from sources such as FAQ documents and URLs.",
+      "question_ar": "يريد قسم الموارد البشرية روبوتًا يجيب عن أسئلة الموظفين باستخدام الإجابات المكتوبة بالفعل في مستندات الأسئلة الشائعة (FAQ) وصفحات الإنترانت. ما ميزة Azure AI Language المصممة لذلك؟",
+      "options_ar": {
+        "A": "فهم لغة المحادثة (conversational language understanding)",
+        "B": "التعرف على الكيانات المسماة (named entity recognition)",
+        "C": "الإجابة عن الأسئلة المخصصة (custom question answering)",
+        "D": "تحويل النص إلى كلام (text to speech)"
+      },
+      "explanation_ar": "تُنشئ ميزة الإجابة عن الأسئلة المخصصة، وهي خليفة QnA Maker، قاعدة معارف من أزواج الأسئلة والأجوبة من مصادر مثل مستندات الأسئلة الشائعة وعناوين URL."
     },
     {
       "uid": "ai900-050",
@@ -714,7 +1099,15 @@
       },
       "answer": ["D"],
       "explanation": "Speech to text transcribes spoken audio into text, in real time or in batches of recorded files.",
-      "reference": "https://learn.microsoft.com/en-us/azure/ai-services/speech-service/overview"
+      "reference": "https://learn.microsoft.com/en-us/azure/ai-services/speech-service/overview",
+      "question_ar": "يريد مركز اتصال تحويل آلاف المكالمات المسجلة مع العملاء إلى نصوص مكتوبة لتحليلها لاحقًا. ما الإمكانية التي يجب أن يستخدمها؟",
+      "options_ar": {
+        "A": "تحويل النص إلى كلام (text to speech) في Azure AI Speech",
+        "B": "ترجمة النصوص (text translation) في Azure AI Translator",
+        "C": "اكتشاف اللغة (language detection) في Azure AI Language",
+        "D": "تحويل الكلام إلى نص (speech to text) في Azure AI Speech"
+      },
+      "explanation_ar": "تنسخ ميزة تحويل الكلام إلى نص الصوتَ المنطوق إلى نص مكتوب، في الوقت الفعلي أو على دفعات من الملفات المسجلة."
     },
     {
       "uid": "ai900-051",
@@ -728,7 +1121,15 @@
         "D": "Conversational language understanding"
       },
       "answer": ["A"],
-      "explanation": "Speech translation in Azure AI Speech translates spoken audio in real time and can output translated text or synthesized speech."
+      "explanation": "Speech translation in Azure AI Speech translates spoken audio in real time and can output translated text or synthesized speech.",
+      "question_ar": "خلال ندوة مباشرة عبر الإنترنت، يتحدث مقدّم العرض باللغة الإنجليزية، ويحتاج الحضور إلى ترجمة مرئية فورية باللغة الإسبانية لما يُقال. ما الإمكانية التي يجب أن تستخدمها؟",
+      "options_ar": {
+        "A": "ترجمة الكلام (speech translation) في Azure AI Speech",
+        "B": "ترجمة المستندات (document translation) في Azure AI Translator",
+        "C": "التلخيص (summarization) في Azure AI Language",
+        "D": "فهم لغة المحادثة (conversational language understanding)"
+      },
+      "explanation_ar": "تترجم ميزة ترجمة الكلام في Azure AI Speech الصوت المنطوق في الوقت الفعلي، ويمكنها إخراج نص مترجَم أو كلام مُركَّب."
     },
     {
       "uid": "ai900-052",
@@ -743,7 +1144,15 @@
       },
       "answer": ["B"],
       "explanation": "Document translation in Azure AI Translator translates whole documents in batches and preserves their structure and formatting.",
-      "reference": "https://learn.microsoft.com/en-us/azure/ai-services/translator/overview"
+      "reference": "https://learn.microsoft.com/en-us/azure/ai-services/translator/overview",
+      "question_ar": "يحتاج قسم قانوني إلى ترجمة مئات من ملفات Word وPDF إلى العربية مع الحفاظ على التخطيط والتنسيق الأصليين. ما الإمكانية التي يجب أن يستخدمها؟",
+      "options_ar": {
+        "A": "ترجمة الكلام (speech translation) في Azure AI Speech",
+        "B": "ترجمة المستندات (document translation) في Azure AI Translator",
+        "C": "استخراج العبارات الرئيسية (key phrase extraction) في Azure AI Language",
+        "D": "الإجابة عن الأسئلة المخصصة (custom question answering) في Azure AI Language"
+      },
+      "explanation_ar": "تترجم ميزة ترجمة المستندات في Azure AI Translator مستندات كاملة على دفعات، وتحافظ على بنيتها وتنسيقها."
     },
     {
       "uid": "ai900-053",
@@ -757,7 +1166,15 @@
         "D": "PII detection"
       },
       "answer": ["C"],
-      "explanation": "Language detection returns the detected language's name, ISO 639-1 code and a confidence score for each document."
+      "explanation": "Language detection returns the detected language's name, ISO 639-1 code and a confidence score for each document.",
+      "question_ar": "يحتاج مركز دعم عالمي إلى توجيه رسائل البريد الإلكتروني الواردة إلى الفريق الإقليمي المناسب. ولكل رسالة، يحتاج إلى اسم اللغة ورمز اللغة وفق معيار ISO ودرجة ثقة. ما ميزة Azure AI Language التي يجب أن يستخدمها؟",
+      "options_ar": {
+        "A": "تحليل المشاعر (sentiment analysis)",
+        "B": "ربط الكيانات (entity linking)",
+        "C": "اكتشاف اللغة (language detection)",
+        "D": "اكتشاف معلومات التعريف الشخصية (PII detection)"
+      },
+      "explanation_ar": "يُرجع اكتشاف اللغة اسم اللغة المكتشفة ورمزها وفق ISO 639-1 ودرجة ثقة لكل مستند."
     },
     {
       "uid": "ai900-054",
@@ -771,7 +1188,15 @@
         "D": "Summarization"
       },
       "answer": ["D"],
-      "explanation": "Summarization produces a condensed version of a document, either by extracting key sentences or by generating an abstractive summary. Key phrase extraction returns only a list of phrases."
+      "explanation": "Summarization produces a condensed version of a document, either by extracting key sentences or by generating an abstractive summary. Key phrase extraction returns only a list of phrases.",
+      "question_ar": "يتلقى المديرون تقارير مشاريع من 40 صفحة، ويريدون فقرة قصيرة تختصر أهم المعلومات في كل تقرير. ما ميزة Azure AI Language التي يجب أن تستخدمها؟",
+      "options_ar": {
+        "A": "استخراج العبارات الرئيسية (key phrase extraction)",
+        "B": "التعرف على الكيانات المسماة (named entity recognition)",
+        "C": "فهم لغة المحادثة (conversational language understanding)",
+        "D": "التلخيص (summarization)"
+      },
+      "explanation_ar": "ينتج التلخيص نسخة مختصرة من المستند، إما باستخراج الجمل الرئيسية أو بإنشاء ملخص تجريدي (abstractive summary). أما استخراج العبارات الرئيسية فيُرجع قائمة بالعبارات فقط."
     },
     {
       "uid": "ai900-055",
@@ -785,7 +1210,15 @@
         "D": "Language detection in Azure AI Language"
       },
       "answer": ["A"],
-      "explanation": "Text to speech synthesizes spoken audio from text, using neural voices that sound natural."
+      "explanation": "Text to speech synthesizes spoken audio from text, using neural voices that sound natural.",
+      "question_ar": "يريد أحد البنوك أن يقرأ نظامه الهاتفي أرصدة الحسابات بصوت مسموع للمتصلين بصوت يبدو طبيعيًا. ما الإمكانية التي يجب أن يستخدمها؟",
+      "options_ar": {
+        "A": "تحويل النص إلى كلام (text to speech) في Azure AI Speech",
+        "B": "تحويل الكلام إلى نص (speech to text) في Azure AI Speech",
+        "C": "Azure AI Translator",
+        "D": "اكتشاف اللغة (language detection) في Azure AI Language"
+      },
+      "explanation_ar": "يُركّب تحويل النص إلى كلام صوتًا منطوقًا من النص، باستخدام أصوات عصبية (neural voices) تبدو طبيعية."
     },
     {
       "uid": "ai900-056",
@@ -799,7 +1232,15 @@
         "D": "Summarization"
       },
       "answer": ["B"],
-      "explanation": "Named entity recognition identifies entities in text and classifies them into categories such as person, organization, location and date/time."
+      "explanation": "Named entity recognition identifies entities in text and classifies them into categories such as person, organization, location and date/time.",
+      "question_ar": "بالنظر إلى الجملة \"افتتحت Contoso مكتبًا جديدًا في جدة في مارس\"، يُرجع النظام \"Contoso\" كمؤسسة، و\"جدة\" كموقع، و\"مارس\" كتاريخ. ما الميزة التي أنتجت هذه النتيجة؟",
+      "options_ar": {
+        "A": "استخراج العبارات الرئيسية (key phrase extraction)",
+        "B": "التعرف على الكيانات المسماة (named entity recognition)",
+        "C": "تحليل المشاعر (sentiment analysis)",
+        "D": "التلخيص (summarization)"
+      },
+      "explanation_ar": "يحدد التعرف على الكيانات المسماة الكيانات في النص ويصنّفها إلى فئات مثل الشخص والمؤسسة والموقع والتاريخ/الوقت."
     },
     {
       "uid": "ai900-057",
@@ -814,7 +1255,16 @@
         "E": "Document translation"
       },
       "answer": ["B", "D"],
-      "explanation": "Sentiment analysis and named entity recognition are Azure AI Language features. Speech synthesis belongs to Azure AI Speech, image captioning to Azure AI Vision and document translation to Azure AI Translator."
+      "explanation": "Sentiment analysis and named entity recognition are Azure AI Language features. Speech synthesis belongs to Azure AI Speech, image captioning to Azure AI Vision and document translation to Azure AI Translator.",
+      "question_ar": "أيٌّ من الميزات التالية توفرها Azure AI Language؟ (اختر اثنتين.)",
+      "options_ar": {
+        "A": "تركيب الكلام (speech synthesis)",
+        "B": "تحليل المشاعر (sentiment analysis)",
+        "C": "إنشاء تسميات توضيحية للصور (image captioning)",
+        "D": "التعرف على الكيانات المسماة (named entity recognition)",
+        "E": "ترجمة المستندات (document translation)"
+      },
+      "explanation_ar": "تحليل المشاعر والتعرف على الكيانات المسماة من ميزات Azure AI Language. أما تركيب الكلام فينتمي إلى Azure AI Speech، وإنشاء التسميات التوضيحية للصور إلى Azure AI Vision، وترجمة المستندات إلى Azure AI Translator."
     },
     {
       "uid": "ai900-058",
@@ -829,7 +1279,16 @@
         "E": "Text to speech in Azure AI Speech"
       },
       "answer": ["B", "C", "E"],
-      "explanation": "Speech to text transcribes the driver, conversational language understanding identifies the intent and entities, and text to speech speaks the reply."
+      "explanation": "Speech to text transcribes the driver, conversational language understanding identifies the intent and entities, and text to speech speaks the reply.",
+      "question_ar": "تبني مساعدًا صوتيًا لسيارة. يجب أن يلتقط ما يقوله السائق، ويستنتج ما يريده، ويرد بإجابة منطوقة. ما الإمكانات التي يجب أن تستخدمها؟ (اختر ثلاث إجابات.)",
+      "options_ar": {
+        "A": "Azure AI Custom Vision",
+        "B": "تحويل الكلام إلى نص (speech to text) في Azure AI Speech",
+        "C": "فهم لغة المحادثة (conversational language understanding) في Azure AI Language",
+        "D": "Azure AI Document Intelligence",
+        "E": "تحويل النص إلى كلام (text to speech) في Azure AI Speech"
+      },
+      "explanation_ar": "يحوّل تحويل الكلام إلى نص كلامَ السائق إلى نص، ويحدد فهم لغة المحادثة النية والكيانات، وينطق تحويل النص إلى كلام الرد."
     },
     {
       "uid": "ai900-059",
@@ -842,7 +1301,13 @@
       },
       "answer": ["A"],
       "shuffle": false,
-      "explanation": "QnA Maker was retired and its functionality continues in custom question answering, a feature of Azure AI Language."
+      "explanation": "QnA Maker was retired and its functionality continues in custom question answering, a feature of Azure AI Language.",
+      "question_ar": "العبارة: ميزة الإجابة عن الأسئلة المخصصة (custom question answering) في Azure AI Language هي خليفة QnA Maker لإنشاء قواعد معارف من الأسئلة والأجوبة. هل هذه العبارة صحيحة؟",
+      "options_ar": {
+        "A": "نعم",
+        "B": "لا"
+      },
+      "explanation_ar": "تم إيقاف QnA Maker، وتستمر وظائفه في ميزة الإجابة عن الأسئلة المخصصة، وهي إحدى ميزات Azure AI Language."
     },
     {
       "uid": "ai900-060",
@@ -855,7 +1320,13 @@
       },
       "answer": ["B"],
       "shuffle": false,
-      "explanation": "Key phrase extraction returns the main phrases in the text. Opinion scores come from sentiment analysis."
+      "explanation": "Key phrase extraction returns the main phrases in the text. Opinion scores come from sentiment analysis.",
+      "question_ar": "العبارة: يُرجع استخراج العبارات الرئيسية (key phrase extraction) درجة تشير إلى ما إذا كان النص يعبّر عن رأي إيجابي أو سلبي. هل هذه العبارة صحيحة؟",
+      "options_ar": {
+        "A": "نعم",
+        "B": "لا"
+      },
+      "explanation_ar": "يُرجع استخراج العبارات الرئيسية العبارات الأساسية في النص. أما درجات الرأي فتأتي من تحليل المشاعر (sentiment analysis)."
     },
     {
       "uid": "ai900-061",
@@ -869,7 +1340,15 @@
         "D": "A unit of text, such as a word or part of a word, that the model processes"
       },
       "answer": ["D"],
-      "explanation": "Language models break text into tokens, which are words, word fragments or characters. Prompt and response lengths and usage costs are measured in tokens."
+      "explanation": "Language models break text into tokens, which are words, word fragments or characters. Prompt and response lengths and usage costs are measured in tokens.",
+      "question_ar": "في سياق النماذج اللغوية الكبيرة (LLMs)، ما المقصود بالرمز المميز (token)؟",
+      "options_ar": {
+        "A": "مفتاح أمان يُستخدم لمصادقة الاستدعاءات إلى نقطة نهاية النموذج",
+        "B": "جملة كاملة في الموجّه (prompt)",
+        "C": "إصدار من نموذج مدرَّب مخزّن في كتالوج النماذج",
+        "D": "وحدة من النص، مثل كلمة أو جزء من كلمة، يعالجها النموذج"
+      },
+      "explanation_ar": "تقسّم النماذج اللغوية النص إلى رموز مميزة (tokens)، وهي كلمات أو أجزاء من كلمات أو أحرف. وتُقاس أطوال الموجّهات والاستجابات وتكاليف الاستخدام بالرموز المميزة."
     },
     {
       "uid": "ai900-062",
@@ -883,7 +1362,15 @@
         "D": "Encrypted versions of prompts sent to the model"
       },
       "answer": ["A"],
-      "explanation": "Embeddings map text (or other content) to vectors in a multi-dimensional space where distance reflects semantic similarity, enabling vector search and retrieval."
+      "explanation": "Embeddings map text (or other content) to vectors in a multi-dimensional space where distance reflects semantic similarity, enabling vector search and retrieval.",
+      "question_ar": "ما التضمينات (embeddings) في حلول الذكاء الاصطناعي التوليدي؟",
+      "options_ar": {
+        "A": "متجهات رقمية تمثل معنى النص، بحيث تكون متجهات المحتوى المتشابه دلاليًا قريبة من بعضها",
+        "B": "صور يتم إنشاؤها من وصف نصي",
+        "C": "نسخ مضغوطة من المستندات مخزنة في فهرس بحث",
+        "D": "نسخ مشفّرة من الموجّهات المرسلة إلى النموذج"
+      },
+      "explanation_ar": "تحوّل التضمينات النص (أو أي محتوى آخر) إلى متجهات في فضاء متعدد الأبعاد تعكس فيه المسافةُ التشابهَ الدلالي، مما يتيح البحث المتجهي (vector search) والاسترجاع."
     },
     {
       "uid": "ai900-063",
@@ -897,7 +1384,15 @@
         "D": "To set the maximum number of tokens the model can return"
       },
       "answer": ["B"],
-      "explanation": "The system message gives the model instructions that shape its behavior, such as its persona, the topics it may discuss and the response format."
+      "explanation": "The system message gives the model instructions that shape its behavior, such as its persona, the topics it may discuss and the response format.",
+      "question_ar": "تقوم بتكوين تطبيق محادثة يستخدم نموذج GPT في Azure OpenAI. ما الغرض من رسالة النظام (system message)؟",
+      "options_ar": {
+        "A": "تخزين سجل المحادثة لأغراض الفوترة",
+        "B": "تحديد دور النموذج ونبرته وقواعده وحدوده طوال المحادثة",
+        "C": "إعادة تدريب أوزان النموذج على بياناتك",
+        "D": "تحديد الحد الأقصى لعدد الرموز المميزة التي يمكن أن يُرجعها النموذج"
+      },
+      "explanation_ar": "تزوّد رسالة النظام النموذج بتعليمات تشكّل سلوكه، مثل الشخصية التي يتقمّصها والموضوعات التي يمكنه مناقشتها وتنسيق الاستجابة."
     },
     {
       "uid": "ai900-064",
@@ -911,7 +1406,15 @@
         "D": "Generating an image of each policy document"
       },
       "answer": ["C"],
-      "explanation": "RAG retrieves relevant content, for example from an Azure AI Search index, and includes it in the prompt so the model answers from that grounding data."
+      "explanation": "RAG retrieves relevant content, for example from an Azure AI Search index, and includes it in the prompt so the model answers from that grounding data.",
+      "question_ar": "تريد شركة أن يجيب مساعد المحادثة لديها عن الأسئلة باستخدام مستندات السياسات الخاصة بها دون إعادة تدريب النموذج. ما النهج الذي يصف التوليد المعزز بالاسترجاع (RAG)؟",
+      "options_ar": {
+        "A": "الضبط الدقيق (fine-tuning) للنموذج على مستندات السياسات",
+        "B": "رفع درجة الحرارة (temperature) لكي ينتج النموذج إجابات أكثر تنوعًا",
+        "C": "استرجاع المقاطع ذات الصلة من المستندات وقت الاستعلام وإضافتها إلى الموجّه، بحيث يؤسس النموذج إجابته عليها",
+        "D": "إنشاء صورة لكل مستند من مستندات السياسات"
+      },
+      "explanation_ar": "يسترجع RAG المحتوى ذا الصلة، على سبيل المثال من فهرس Azure AI Search، ويضمّنه في الموجّه بحيث يجيب النموذج استنادًا إلى بيانات التأسيس (grounding data) تلك."
     },
     {
       "uid": "ai900-065",
@@ -925,7 +1428,15 @@
         "D": "Lower the temperature toward 0"
       },
       "answer": ["D"],
-      "explanation": "Temperature controls randomness. Lower values make the model choose the most likely tokens, giving more focused and repeatable output, while higher values make output more varied."
+      "explanation": "Temperature controls randomness. Lower values make the model choose the most likely tokens, giving more focused and repeatable output, while higher values make output more varied.",
+      "question_ar": "يريد مطوّر أن تكون إجابات النموذج عن سؤال دعم متسقة وقابلة للتنبؤ قدر الإمكان في كل مرة يُطرح فيها السؤال. ما التغيير في المعاملات الذي يساعد على تحقيق ذلك؟",
+      "options_ar": {
+        "A": "زيادة درجة الحرارة (temperature) إلى 1.5",
+        "B": "زيادة الحد الأقصى لعدد الرموز المميزة في الاستجابة",
+        "C": "إزالة رسالة النظام",
+        "D": "خفض درجة الحرارة (temperature) باتجاه 0"
+      },
+      "explanation_ar": "تتحكم درجة الحرارة في العشوائية. فالقيم المنخفضة تجعل النموذج يختار الرموز المميزة الأكثر احتمالًا، مما يعطي مخرجات أكثر تركيزًا وقابلية للتكرار، في حين تجعل القيم الأعلى المخرجات أكثر تنوعًا."
     },
     {
       "uid": "ai900-066",
@@ -939,7 +1450,15 @@
         "D": "A response written in a different language from the prompt"
       },
       "answer": ["A"],
-      "explanation": "A hallucination is plausible-sounding content that is false or invented, which is why grounding and verification are important."
+      "explanation": "A hallucination is plausible-sounding content that is false or invented, which is why grounding and verification are important.",
+      "question_ar": "ماذا يعني مصطلح \"الهلوسة\" (hallucination) عند وصف مخرجات الذكاء الاصطناعي التوليدي؟",
+      "options_ar": {
+        "A": "استجابة تبدو سلسة وواثقة لكنها غير صحيحة من حيث الحقائق أو غير مدعومة ببيانات المصدر",
+        "B": "استجابة حظرها عامل تصفية المحتوى",
+        "C": "استجابة مقطوعة لأنها بلغت حد الرموز المميزة",
+        "D": "استجابة مكتوبة بلغة مختلفة عن لغة الموجّه"
+      },
+      "explanation_ar": "الهلوسة محتوى يبدو معقولًا لكنه خاطئ أو مختلَق، ولهذا يُعد التأسيس (grounding) والتحقق أمرين مهمين."
     },
     {
       "uid": "ai900-067",
@@ -953,7 +1472,15 @@
         "D": "A chat model such as gpt-4o-mini used for text output"
       },
       "answer": ["B"],
-      "explanation": "Image generation models create new images from natural-language prompts. Embeddings models return vectors, Whisper transcribes speech, and chat models used for text produce text."
+      "explanation": "Image generation models create new images from natural-language prompts. Embeddings models return vectors, Whisper transcribes speech, and chat models used for text produce text.",
+      "question_ar": "يريد فريق تسويق إنشاء رسوم توضيحية أصلية من أوصاف نصية مثل \"أفق مدينة صحراوية عند الغروب بأسلوب الألوان المائية\". ما نوع النموذج الذي يجب أن ينشره في Azure OpenAI؟",
+      "options_ar": {
+        "A": "نموذج تضمينات نصية مثل text-embedding-3-large",
+        "B": "نموذج لإنشاء الصور مثل DALL-E 3 أو GPT-image-1",
+        "C": "نموذج Whisper لتحويل الكلام إلى نص",
+        "D": "نموذج محادثة مثل gpt-4o-mini يُستخدم لإخراج النصوص"
+      },
+      "explanation_ar": "تنشئ نماذج إنشاء الصور صورًا جديدة من موجّهات باللغة الطبيعية. أما نماذج التضمينات فتُرجع متجهات، وينسخ Whisper الكلام إلى نص، وتنتج نماذج المحادثة المستخدمة للنصوص نصوصًا."
     },
     {
       "uid": "ai900-068",
@@ -967,7 +1494,15 @@
         "D": "A chat model with a high temperature"
       },
       "answer": ["C"],
-      "explanation": "Embeddings models turn text into vectors that capture meaning. Comparing vector similarity enables semantic (vector) search."
+      "explanation": "Embeddings models turn text into vectors that capture meaning. Comparing vector similarity enables semantic (vector) search.",
+      "question_ar": "تحتاج إلى العثور على مستندات مشابهة في المعنى لاستعلام المستخدم، حتى عندما تستخدم كلمات مختلفة. ما نوع نموذج Azure OpenAI الذي يجب أن تستخدمه لتمثيل المستندات والاستعلام؟",
+      "options_ar": {
+        "A": "نموذج لإنشاء الصور",
+        "B": "نموذج لتحويل الكلام إلى نص",
+        "C": "نموذج تضمينات (embeddings model)",
+        "D": "نموذج محادثة بدرجة حرارة عالية"
+      },
+      "explanation_ar": "تحوّل نماذج التضمينات النص إلى متجهات تلتقط المعنى. وتتيح مقارنة تشابه المتجهات البحث الدلالي (المتجهي)."
     },
     {
       "uid": "ai900-069",
@@ -982,7 +1517,15 @@
       },
       "answer": ["D"],
       "explanation": "The content filtering system, built on Azure AI Content Safety, classifies both input prompts and output completions across harm categories and severity levels and blocks content above the configured threshold.",
-      "reference": "https://learn.microsoft.com/en-us/azure/ai-services/content-safety/overview"
+      "reference": "https://learn.microsoft.com/en-us/azure/ai-services/content-safety/overview",
+      "question_ar": "ما العبارة التي تصف بشكل صحيح نظام تصفية المحتوى الافتراضي المستخدم مع نماذج Azure OpenAI؟",
+      "options_ar": {
+        "A": "يفحص استجابات النموذج فقط، ولا يفحص موجّهات المستخدم أبدًا.",
+        "B": "يضمن خلو استجابات النموذج من أي أخطاء في الحقائق.",
+        "C": "يترجم الموجّهات إلى الإنجليزية قبل إرسالها إلى النموذج.",
+        "D": "يقيّم كلًا من الموجّهات والاستجابات بحثًا عن المحتوى الضار مثل الكراهية والمحتوى الجنسي والعنف وإيذاء النفس، ويصفّيه حسب مستوى الخطورة."
+      },
+      "explanation_ar": "يصنّف نظام تصفية المحتوى، المبني على Azure AI Content Safety، كلًا من موجّهات الإدخال وإكمالات الإخراج (completions) عبر فئات الضرر ومستويات الخطورة، ويحظر المحتوى الذي يتجاوز الحد المكوَّن."
     },
     {
       "uid": "ai900-070",
@@ -996,7 +1539,15 @@
         "D": "Monitor CPU usage of Azure virtual machines"
       },
       "answer": ["A"],
-      "explanation": "The model catalog lets you discover, compare, evaluate and deploy foundation models from many providers for use in your generative AI solutions."
+      "explanation": "The model catalog lets you discover, compare, evaluate and deploy foundation models from many providers for use in your generative AI solutions.",
+      "question_ar": "ماذا يمكنك أن تفعل باستخدام كتالوج النماذج (model catalog) في مدخل Azure AI Foundry (Microsoft Foundry)؟",
+      "options_ar": {
+        "A": "استعراض النماذج ومقارنتها ونشرها من Microsoft وOpenAI وMeta وMistral وموفرين آخرين",
+        "B": "تخزين مجموعات بيانات التدريب الأولية فقط",
+        "C": "استضافة مستودعات Git للتعليمات البرمجية للتطبيقات",
+        "D": "مراقبة استخدام وحدة المعالجة المركزية (CPU) للأجهزة الظاهرية في Azure"
+      },
+      "explanation_ar": "يتيح لك كتالوج النماذج اكتشاف النماذج الأساسية (foundation models) من العديد من الموفرين ومقارنتها وتقييمها ونشرها لاستخدامها في حلول الذكاء الاصطناعي التوليدي."
     },
     {
       "uid": "ai900-071",
@@ -1011,7 +1562,15 @@
       },
       "answer": ["B"],
       "explanation": "The process starts by identifying and prioritizing potential harms, then measuring them in the solution, mitigating them in layers and operating the solution responsibly.",
-      "reference": "https://learn.microsoft.com/en-us/azure/foundry/responsible-use-of-ai-overview"
+      "reference": "https://learn.microsoft.com/en-us/azure/foundry/responsible-use-of-ai-overview",
+      "question_ar": "تصف إرشادات Microsoft للذكاء الاصطناعي التوليدي المسؤول عملية تتكون من التحديد والقياس والتخفيف والتشغيل (identify, measure, mitigate, operate). ما المرحلة الأولى في هذه العملية؟",
+      "options_ar": {
+        "A": "تطبيق إجراءات التخفيف مثل عوامل تصفية المحتوى",
+        "B": "تحديد الأضرار المحتملة التي قد يتسبب فيها الحل",
+        "C": "وضع خطة للنشر والاستجابة للحوادث",
+        "D": "قياس عدد مرات حدوث المخرجات الضارة"
+      },
+      "explanation_ar": "تبدأ العملية بتحديد الأضرار المحتملة وترتيبها حسب الأولوية، ثم قياسها في الحل، ثم تخفيفها على طبقات، ثم تشغيل الحل بمسؤولية."
     },
     {
       "uid": "ai900-072",
@@ -1025,7 +1584,15 @@
         "D": "An agent needs no instructions or configuration."
       },
       "answer": ["C"],
-      "explanation": "Agents combine a generative AI model with instructions and tools, which lets them retrieve information and take actions on the user's behalf rather than only replying with text."
+      "explanation": "Agents combine a generative AI model with instructions and tools, which lets them retrieve information and take actions on the user's behalf rather than only replying with text.",
+      "question_ar": "لدى شركة بالفعل مساعد (copilot) يجيب عن أسئلة الموظفين في المحادثة. وهي تريد الآن وكيل ذكاء اصطناعي (AI agent) يمكنه أيضًا التحقق من مستويات المخزون عبر واجهة API للمخزون وإنشاء أوامر الشراء. ما الذي يميز وكيل الذكاء الاصطناعي عن مساعد المحادثة البسيط؟",
+      "options_ar": {
+        "A": "يجيب الوكيل فقط من بيانات تدريب النموذج.",
+        "B": "لا يستخدم الوكيل نموذجًا لغويًا.",
+        "C": "يمكن للوكيل استخدام أدوات، مثل واجهات API ومصادر البيانات، للاستدلال عبر الخطوات واتخاذ إجراءات تُكمل المهمة.",
+        "D": "لا يحتاج الوكيل إلى أي تعليمات أو تكوين."
+      },
+      "explanation_ar": "يجمع الوكلاء بين نموذج ذكاء اصطناعي توليدي وتعليمات وأدوات، مما يتيح لهم استرجاع المعلومات واتخاذ إجراءات نيابة عن المستخدم بدلًا من الاكتفاء بالرد بنص."
     },
     {
       "uid": "ai900-073",
@@ -1039,7 +1606,15 @@
         "D": "Safety system"
       },
       "answer": ["D"],
-      "explanation": "The safety system layer includes platform-level protections such as content filters and abuse monitoring that act on prompts and responses."
+      "explanation": "The safety system layer includes platform-level protections such as content filters and abuse monitoring that act on prompts and responses.",
+      "question_ar": "غالبًا ما يُوصف تخفيف الأضرار في حل للذكاء الاصطناعي التوليدي على أربع طبقات: النموذج، ونظام الأمان، ورسالة النظام والتأسيس، وتجربة المستخدم. في أي طبقة تعمل عوامل تصفية المحتوى التي تحظر الموجّهات والاستجابات الضارة؟",
+      "options_ar": {
+        "A": "النموذج (model)",
+        "B": "تجربة المستخدم (user experience)",
+        "C": "رسالة النظام والتأسيس (system message and grounding)",
+        "D": "نظام الأمان (safety system)"
+      },
+      "explanation_ar": "تتضمن طبقة نظام الأمان وسائل حماية على مستوى النظام الأساسي، مثل عوامل تصفية المحتوى ومراقبة إساءة الاستخدام، والتي تعمل على الموجّهات والاستجابات."
     },
     {
       "uid": "ai900-074",
@@ -1053,7 +1628,15 @@
         "D": "Lowering the temperature"
       },
       "answer": ["C"],
-      "explanation": "Few-shot prompting provides examples of the desired input and output in the prompt so the model follows the demonstrated pattern, without changing the model's weights."
+      "explanation": "Few-shot prompting provides examples of the desired input and output in the prompt so the model follows the demonstrated pattern, without changing the model's weights.",
+      "question_ar": "يُضمّن مطوّر في الموجّه، قبل السؤال الفعلي، ثلاثة أسئلة نموذجية من العملاء، يتبع كلًّا منها تنسيق الإجابة المتوقع بالضبط. ما أسلوب هندسة الموجّهات (prompt engineering) هذا؟",
+      "options_ar": {
+        "A": "الضبط الدقيق (fine-tuning)",
+        "B": "التوليد المعزز بالاسترجاع (RAG)",
+        "C": "التوجيه بأمثلة قليلة (few-shot prompting)",
+        "D": "خفض درجة الحرارة (temperature)"
+      },
+      "explanation_ar": "يوفر التوجيه بأمثلة قليلة أمثلة على المدخلات والمخرجات المطلوبة في الموجّه، بحيث يتبع النموذج النمط الموضَّح، دون تغيير أوزان النموذج."
     },
     {
       "uid": "ai900-075",
@@ -1067,7 +1650,15 @@
         "D": "Instruct the model in the system message to answer only from the provided content and to say when it does not know"
       },
       "answer": ["B", "D"],
-      "explanation": "Grounding the model in trusted data and instructing it to stay within that data reduce fabricated answers. A higher temperature increases randomness, and more tokens only allows longer answers."
+      "explanation": "Grounding the model in trusted data and instructing it to stay within that data reduce fabricated answers. A higher temperature increases randomness, and more tokens only allows longer answers.",
+      "question_ar": "يختلق مساعد للموارد البشرية مبني على Azure OpenAI أحيانًا تفاصيل عن السياسات. ما الإجراءات التي تساعد على تقليل حالات الهلوسة (hallucinations) هذه؟ (اختر اثنتين.)",
+      "options_ar": {
+        "A": "رفع درجة الحرارة (temperature)",
+        "B": "تأسيس الاستجابات على محتوى مسترجَع من مستندات سياسات الموارد البشرية المعتمدة",
+        "C": "زيادة الحد الأقصى لعدد الرموز المميزة في الاستجابة",
+        "D": "توجيه النموذج في رسالة النظام بأن يجيب فقط من المحتوى المقدَّم وأن يوضح عندما لا يعرف الإجابة"
+      },
+      "explanation_ar": "يؤدي تأسيس النموذج على بيانات موثوقة وتوجيهه بالالتزام بها إلى تقليل الإجابات المختلَقة. أما رفع درجة الحرارة فيزيد العشوائية، وزيادة الرموز المميزة تسمح فقط بإجابات أطول."
     },
     {
       "uid": "ai900-076",
@@ -1081,7 +1672,15 @@
         "D": "Grouping customers into segments with k-means clustering"
       },
       "answer": ["A", "C"],
-      "explanation": "Generative AI creates new content such as text and images. Churn prediction and customer segmentation are traditional machine learning tasks."
+      "explanation": "Generative AI creates new content such as text and images. Churn prediction and customer segmentation are traditional machine learning tasks.",
+      "question_ar": "أيٌّ مما يلي من أحمال عمل الذكاء الاصطناعي التوليدي؟ (اختر اثنتين.)",
+      "options_ar": {
+        "A": "صياغة ردود على رسائل البريد الإلكتروني للعملاء باستخدام نموذج لغوي كبير",
+        "B": "التنبؤ بفقدان العملاء (churn) باستخدام نموذج انحدار لوجستي",
+        "C": "إنشاء صور تسويقية من موجّه نصي",
+        "D": "تقسيم العملاء إلى شرائح باستخدام تجميع k-means"
+      },
+      "explanation_ar": "ينشئ الذكاء الاصطناعي التوليدي محتوى جديدًا مثل النصوص والصور. أما التنبؤ بفقدان العملاء وتقسيم العملاء إلى شرائح فهما من مهام التعلم الآلي التقليدية."
     },
     {
       "uid": "ai900-077",
@@ -1096,7 +1695,16 @@
         "E": "Self-harm"
       },
       "answer": ["B", "C", "E"],
-      "explanation": "Azure AI Content Safety evaluates the harm categories hate, sexual, violence and self-harm, each with a severity level. Spelling and latency are not harm categories."
+      "explanation": "Azure AI Content Safety evaluates the harm categories hate, sexual, violence and self-harm, each with a severity level. Spelling and latency are not harm categories.",
+      "question_ar": "تصنّف خدمة Azure AI Content Safety، التي تقوم عليها عوامل تصفية المحتوى في Azure OpenAI، النصوص والصور إلى فئات ضرر. أيٌّ مما يلي من بين هذه الفئات؟ (اختر ثلاث إجابات.)",
+      "options_ar": {
+        "A": "الأخطاء الإملائية",
+        "B": "الكراهية (hate)",
+        "C": "العنف (violence)",
+        "D": "زمن الانتقال المرتفع (high latency)",
+        "E": "إيذاء النفس (self-harm)"
+      },
+      "explanation_ar": "تقيّم Azure AI Content Safety فئات الضرر: الكراهية، والمحتوى الجنسي، والعنف، وإيذاء النفس، ولكل منها مستوى خطورة. أما الأخطاء الإملائية وزمن الانتقال فليست من فئات الضرر."
     },
     {
       "uid": "ai900-078",
@@ -1110,7 +1718,15 @@
         "D": "An embeddings model to vectorize the documents and the user's question"
       },
       "answer": ["A", "D"],
-      "explanation": "A common RAG pattern uses an embeddings model to create vectors and Azure AI Search to find the most relevant passages, which are then added to the prompt."
+      "explanation": "A common RAG pattern uses an embeddings model to create vectors and Azure AI Search to find the most relevant passages, which are then added to the prompt.",
+      "question_ar": "تبني تطبيق محادثة باستخدام نموذج GPT منشور في Azure OpenAI in Foundry Models. يجب أن يجيب التطبيق عن الأسئلة من آلاف المستندات الداخلية باستخدام التوليد المعزز بالاسترجاع (RAG). ما المكونات التي تُستخدم عادةً لتنفيذ جزء الاسترجاع؟ (اختر اثنتين.)",
+      "options_ar": {
+        "A": "فهرس Azure AI Search للمستندات",
+        "B": "Azure AI Face",
+        "C": "Azure AI Custom Vision",
+        "D": "نموذج تضمينات (embeddings model) لتحويل المستندات وسؤال المستخدم إلى متجهات"
+      },
+      "explanation_ar": "يستخدم نمط RAG الشائع نموذج تضمينات لإنشاء المتجهات وAzure AI Search للعثور على المقاطع الأكثر صلة، والتي تُضاف بعد ذلك إلى الموجّه."
     },
     {
       "uid": "ai900-079",
@@ -1123,7 +1739,13 @@
       },
       "answer": ["A"],
       "shuffle": false,
-      "explanation": "LLMs generate output one token at a time, each time predicting the next token from the prompt and the tokens already generated."
+      "explanation": "LLMs generate output one token at a time, each time predicting the next token from the prompt and the tokens already generated.",
+      "question_ar": "العبارة: ينشئ النموذج اللغوي الكبير النص من خلال التنبؤ المتكرر برمز مميز (token) تالٍ محتمل بناءً على الرموز المميزة التي تسبقه. هل هذه العبارة صحيحة؟",
+      "options_ar": {
+        "A": "نعم",
+        "B": "لا"
+      },
+      "explanation_ar": "تنشئ النماذج اللغوية الكبيرة المخرجات رمزًا مميزًا واحدًا في كل مرة، حيث تتنبأ في كل مرة بالرمز المميز التالي من الموجّه والرموز المميزة التي تم إنشاؤها بالفعل."
     },
     {
       "uid": "ai900-080",
@@ -1136,7 +1758,13 @@
       },
       "answer": ["B"],
       "shuffle": false,
-      "explanation": "A low temperature makes output more deterministic, but the model can still confidently produce incorrect information. Accuracy depends on grounding and verification."
+      "explanation": "A low temperature makes output more deterministic, but the model can still confidently produce incorrect information. Accuracy depends on grounding and verification.",
+      "question_ar": "العبارة: إن تعيين درجة الحرارة (temperature) لنموذج Azure OpenAI على 0 يضمن أن تكون استجاباته دقيقة من حيث الحقائق. هل هذه العبارة صحيحة؟",
+      "options_ar": {
+        "A": "نعم",
+        "B": "لا"
+      },
+      "explanation_ar": "تجعل درجة الحرارة المنخفضة المخرجات أكثر حتمية، لكن النموذج قد يظل ينتج معلومات غير صحيحة بثقة. وتعتمد الدقة على التأسيس (grounding) والتحقق."
     }
   ]
 }
