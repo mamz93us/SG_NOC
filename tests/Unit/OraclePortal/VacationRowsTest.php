@@ -100,7 +100,7 @@ it('sends no duration, because Oracle sends none', function () {
     expect($rows[0])->not->toHaveKey('duration');
 });
 
-it('builds the person-id map from an attendance payload', function () {
+it('builds the person-id map from an employees payload', function () {
     $map = VacationRows::personIds([
         ['personNumber' => '1003', 'personId' => '100000000367262'],
         ['personNumber' => '1969', 'personId' => '300000329720317'],
@@ -109,12 +109,11 @@ it('builds the person-id map from an attendance payload', function () {
     expect($map)->toBe(['1003' => '100000000367262', '1969' => '300000329720317']);
 });
 
-it('yields an empty map from an employees payload, which carries no person id', function () {
-    // /employees looks like the cheaper source — 213 KB against 381 KB — but
-    // it has no personId column at all. Failing soft here means the balances
-    // still import; they just carry no Oracle person id.
+it('yields an empty map from a payload without person ids, rather than failing', function () {
+    // Until 2026-09-27 /employees had no personId column at all. Failing soft
+    // means the balances still import; they just carry no Oracle person id.
     $map = VacationRows::personIds([
-        ['personNumber' => '1003', 'personName' => 'Someone', 'status' => 'ACTIVE'],
+        ['personNumber' => '1003', 'personName' => 'Someone', 'status' => 'Active'],
     ]);
 
     expect($map)->toBe([]);

@@ -3,6 +3,7 @@
 use App\Models\AllowedDomain;
 use App\Models\Employee;
 use App\Models\HrImportBatch;
+use App\Models\HrImportRow;
 use App\Models\OraclePortal\PortalSetting;
 use App\Services\Identity\OracleHrImportService;
 use App\Services\OraclePortal\EmployeeSync;
@@ -162,24 +163,50 @@ beforeEach(function () {
     ]);
 });
 
-/** A client answering /attendance with whatever the test hands it. */
-function portalAttendanceApi(array $rows): PortalApiClient
+/**
+ * A client answering /employees with whatever the test hands it, and
+ * /vacationDetails with leave that — like Oracle's since 2026-09-27 — is dated
+ * a day early, which is what the sync judges the date offset from.
+ */
+function portalEmployeesApi(array $rows, ?array $leave = null): PortalApiClient
 {
-    return new class($rows) extends PortalApiClient
+    return new class($rows, $leave ?? oracleLeaveDayEarly()) extends PortalApiClient
     {
-        public function __construct(private array $rows) {}
+        public function __construct(private array $rows, private array $leave) {}
 
-        public function attendance(?string $personNumber = null, ?string $personId = null, ?PortalSetting $settings = null): array
+        public function employees(?string $personNumber = null, ?PortalSetting $settings = null): array
         {
             return $this->rows;
+        }
+
+        public function vacationDetails(?string $personNumber = null, ?PortalSetting $settings = null): array
+        {
+            return $this->leave;
         }
     };
 }
 
-function employeeSyncWith(array $rows): EmployeeSync
+/** 150 leave records starting Sunday to Thursday, each sent a day early. */
+function oracleLeaveDayEarly(int $shift = -1): array
+{
+    $rows = [];
+    $day = Carbon\CarbonImmutable::parse('2026-08-02'); // a Sunday
+
+    while (count($rows) < 150) {
+        if (! in_array($day->dayOfWeek, [5, 6], true)) {
+            $rows[] = ['personNumber' => '1', 'absenceType' => 'Annual Leave',
+                'startDate' => $day->addDays($shift)->toDateString(), 'endDate' => $day->addDays($shift)->toDateString()];
+        }
+        $day = $day->addDay();
+    }
+
+    return $rows;
+}
+
+function employeeSyncWith(array $rows, ?array $leave = null): EmployeeSync
 {
     return new EmployeeSync(
-        portalAttendanceApi($rows),
+        portalEmployeesApi($rows, $leave),
         app(OracleHrImportService::class),
         new PortalBook,
     );
@@ -191,16 +218,15 @@ function oracleEmployee(string $number, array $overrides = []): array
         'personNumber' => $number,
         'personName' => 'Person '.$number,
         'personEmail' => 'person'.$number.'@samirgroup.com',
-        'employeeCategory' => 'SALES',
-        'orgName' => 'Some Division - Jeddah',
+        'department' => 'Some Division - Jeddah',
         'locationName' => 'Jeddah',
         'jobName' => 'Technician',
         'gender' => 'M',
         'personId' => '10000000000'.$number,
-        'assignmentId' => '30000000000'.$number,
-        'assignmentStatusType' => 'ACTIVE',
-        'personType' => 'Permanent Employee',
-        'startDate' => '17-OCT-09',
+        'phone' => '0555'.str_pad($number, 6, '0', STR_PAD_LEFT),
+        'status' => 'Active',
+        // Oracle means 2009-10-17: its API writes every date a day early.
+        'startDate' => '2009-10-16',
     ], $overrides);
 }
 
@@ -236,7 +262,7 @@ it('records what Oracle says about an assignment but never terminates', function
         'oracle_emp_no' => '1001', 'branch_id' => 1, 'status' => 'active']);
 
     $result = employeeSyncWith(oracleWorkforce(450, [
-        oracleEmployee('1001', ['assignmentStatusType' => 'INACTIVE']),
+        oracleEmployee('1001', ['status' => 'Inactive']),
     ]))->sync();
 
     $employee->refresh();
@@ -295,7 +321,7 @@ it('refuses to record statuses when Oracle calls too many people inactive', func
 
     $rows = [];
     for ($i = 1; $i <= 30; $i++) {
-        $rows[] = oracleEmployee((string) (6000 + $i), ['assignmentStatusType' => 'INACTIVE']);
+        $rows[] = oracleEmployee((string) (6000 + $i), ['status' => 'Inactive']);
     }
 
     $result = employeeSyncWith(oracleWorkforce(450, $rows))->sync();
@@ -314,7 +340,7 @@ it('records a believable number of leavers', function () {
         'oracle_emp_no' => '1001', 'branch_id' => 1, 'status' => 'active']);
 
     $result = employeeSyncWith(oracleWorkforce(450, [
-        oracleEmployee('1001', ['assignmentStatusType' => 'INACTIVE']),
+        oracleEmployee('1001', ['status' => 'Inactive']),
     ]))->sync();
 
     expect($result['leavers_refused'])->toBeFalse();
@@ -339,10 +365,52 @@ it('matches an Oracle number held with leading zeros', function () {
         'oracle_emp_no' => '01001', 'branch_id' => 1, 'status' => 'active']);
 
     employeeSyncWith(oracleWorkforce(450, [
-        oracleEmployee('1001', ['assignmentStatusType' => 'INACTIVE']),
+        oracleEmployee('1001', ['status' => 'Inactive']),
     ]))->sync();
 
     expect($employee->refresh()->oracle_assignment_status)->toBe('INACTIVE');
+});
+
+it('applies the Arabic name, mobile and hire date the API now carries, without blanking DEPT NO', function () {
+    // Oracle's API has no DEPT NO. Before 2026-09-29 applying an API row wrote
+    // its null over the one the spreadsheet had set.
+    $employee = Employee::create(['name' => 'Person 1001', 'email' => 'person1001@samirgroup.com',
+        'oracle_emp_no' => '1001', 'branch_id' => 1, 'status' => 'active', 'oracle_dept_no' => '4410']);
+
+    $result = employeeSyncWith(oracleWorkforce(450, [
+        oracleEmployee('1001', ['personNameAr' => 'شخص ألف', 'phone' => '0551234567']),
+    ]))->sync();
+
+    $row = HrImportRow::where('hr_import_batch_id', $result['batch']->id)->where('emp_no', '1001')->sole();
+
+    expect($row->status)->toBe('matched');
+
+    app(OracleHrImportService::class)->applyMatched($row);
+
+    $employee->refresh();
+
+    expect($employee->oracle_dept_no)->toBe('4410')
+        ->and($employee->name_ar)->toBe('شخص ألف')
+        ->and($employee->mobile_phone)->toBe('+966551234567')
+        ->and($employee->oracle_person_id)->toBe('100000000001001')
+        ->and($employee->hired_date?->toDateString())->toBe('2009-10-17');
+});
+
+it('corrects the day Oracle\'s hire dates are out, and stops correcting once Oracle does', function () {
+    $early = employeeSyncWith(oracleWorkforce())->sync(dryRun: true);
+
+    expect($early['date_offset'])->toBe(1);
+
+    $fixed = employeeSyncWith(oracleWorkforce(), oracleLeaveDayEarly(0))->sync(dryRun: true);
+
+    expect($fixed['date_offset'])->toBe(0);
+});
+
+it('stages nothing when the leave dates cannot say whether hire dates are out', function () {
+    expect(fn () => employeeSyncWith(oracleWorkforce(), array_slice(oracleLeaveDayEarly(), 0, 20))->sync())
+        ->toThrow(RuntimeException::class, 'too few');
+
+    expect(HrImportBatch::count())->toBe(0);
 });
 
 it('changes nothing when the response is too small to believe', function () {

@@ -426,6 +426,11 @@ if (\App\Support\HomePortal::enabled()) {
                 ->name('announcements');
             Route::post('/announcements/read', [\App\Http\Controllers\Home\HomeAnnouncementController::class, 'markRead'])
                 ->name('announcements.read');
+            // A picture from an Oracle notice. Re-checks per request that the
+            // viewer may see the notice, like the document routes do.
+            Route::get('/announcements/{announcement}/pictures/{position}', [\App\Http\Controllers\Home\HomeAnnouncementController::class, 'image'])
+                ->whereNumber('position')
+                ->name('announcements.image');
 
             // The signed-in employee's own Apple Wallet pass. Home-scoped
             // rather than reusing employee.card.wallet, which would have to be

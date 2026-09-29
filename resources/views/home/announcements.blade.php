@@ -29,6 +29,11 @@
   .ann-item-top{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:9px; }
   .ann-item h3{ font-size:17.5px; font-weight:700; color:var(--ink); }
   .ann-item .ann-body{ font-size:14px; line-height:1.65; color:var(--ink-soft); white-space:pre-wrap; }
+  .ann-item .ann-pictures{ display:flex; flex-direction:column; gap:10px; margin-top:12px; }
+  .ann-item .ann-pictures img{
+    display:block; max-width:100%; height:auto; border-radius:12px;
+    border:1px solid var(--line);
+  }
   /* Oracle's announcements have a title and dates and no text of their own. */
   .ann-item h3.ann-title-only{ margin-bottom:0; }
   .ann-tag{
@@ -84,9 +89,20 @@
         </div>
 
         <h3 @class(['ann-title-only' => blank($ann->body)])>{{ $ann->title }}</h3>
-        {{-- See the slider: an Oracle announcement has no text of its own. --}}
+        {{-- See the slider: most Oracle announcements are a picture alone. --}}
         @if(filled($ann->body))
             <div class="ann-body">{{ $ann->body }}</div>
+        @endif
+
+        @if($ann->pictures()->isNotEmpty())
+            <div class="ann-pictures">
+                @foreach($ann->pictures() as $picture)
+                    @php $pictureUrl = route('home.announcements.image', ['announcement' => $ann->id, 'position' => $picture->position, 'v' => substr($picture->sha1, 0, 12)]); @endphp
+                    <a href="{{ $pictureUrl }}" target="_blank" rel="noopener">
+                        <img src="{{ $pictureUrl }}" alt="{{ $ann->title }}" loading="lazy" decoding="async">
+                    </a>
+                @endforeach
+            </div>
         @endif
 
         @if($ann->link_url)

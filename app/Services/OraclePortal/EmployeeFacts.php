@@ -5,27 +5,24 @@ namespace App\Services\OraclePortal;
 use Carbon\CarbonImmutable;
 
 /**
- * One row of Oracle's /attendance view turned into the shape the HR import
+ * One row of Oracle's /employees list turned into the shape the HR import
  * already stages.
  *
- * /attendance rather than /employees: it is the same 617 people from the same
- * Oracle view with more columns — personId, assignmentId, gender, personType
- * and assignmentStatusType — and personId is the only key Oracle's per-person
- * endpoints accept.
+ * Until 2026-09-27 this read the undocumented /attendance view, the only one
+ * then carrying personId. Oracle's documented API removed that endpoint and
+ * gave /employees what it had: personId, plus the Arabic name and a phone
+ * number, which the old view never filled. Three columns went with it —
+ * assignmentId, employeeCategory and personType — so a row mapped here leaves
+ * them null, and writeToEmployee() only writes a non-empty value, so what the
+ * last /attendance pull recorded on an employee stays.
  *
- * Pure: no database, no HTTP, no clock it is not handed. It is where the two
- * date traps live.
+ * Pure: no database, no HTTP, no clock it is not handed.
  *
- * **Hire dates are not leave dates.** Oracle writes both as dd-MMM-yy, but
- * hire years in this feed run from 1988 to 2026 and 21 people were hired
- * before 2000. VacationImporter::date() bounds years to 2000-2100, which is
- * right for leave — nobody books annual leave in 1995 — and would silently
- * reject a fifth of the workforce here. Hence a separate parser with a wider
- * window.
- *
- * **A two-digit year needs the right pivot.** PHP reads `y` as 2000-2069 for
- * 00-69 and 1970-1999 for 70-99, which happens to be exactly right across
- * 1988-2026: `88` is 1988 and `26` is 2026.
+ * **Hire dates are not leave dates.** Hire years in this feed run from 1988 to
+ * 2026 and 21 people were hired before 2000. VacationImporter::date() bounds
+ * years to 2000-2100, which is right for leave — nobody books annual leave in
+ * 1995 — and would silently reject a fifth of the workforce here. Hence a
+ * separate parser with a wider window.
  */
 class EmployeeFacts
 {
@@ -41,19 +38,7 @@ class EmployeeFacts
     public const MIN_HIRE_YEAR = 1960;
 
     /**
-     * Oracle's category values, as the live feed uses them. Kept for display
-     * and validation only — this is a job category, and must never be confused
-     * with Employee::TYPE_SERVICE, which means "holds no mailbox".
-     *
-     * @var list<string>
-     */
-    public const CATEGORIES = [
-        'SALES', 'SERVICE', 'OPERATION', 'ADMINISTRATORS',
-        'ENGINEER', 'COLLECTOR', 'MARKETING', 'RETAIL',
-    ];
-
-    /**
-     * @param  list<array<string,mixed>>  $rows  an /attendance payload
+     * @param  list<array<string,mixed>>  $rows  an /employees payload
      * @return list<array<string,mixed>> rows for OracleHrImportService
      */
     public static function rows(array $rows): array
@@ -88,25 +73,24 @@ class EmployeeFacts
             'emp_no' => $empNo,
             'emp_name' => self::text($row['personName'] ?? null),
             'email' => mb_strtolower(self::text($row['personEmail'] ?? null) ?? ''),
-            // Oracle's /attendance carries no mobile number and no DEPT NO, so
-            // this feed cannot replace the spreadsheet import — it sits beside
-            // it. writeToEmployee() only ever writes a non-empty value, so an
-            // API batch never blanks a mobile the sheet set. Do not "tidy" that
-            // rule away.
-            'mobile_no' => '',
+            // Staged raw: normalizeMobile() is the one place a number is
+            // judged, the same as for the spreadsheet.
+            'mobile_no' => self::phone($row['phone'] ?? null),
+            // Oracle's API has no DEPT NO. writeToEmployee() only writes a
+            // non-empty value, so an API batch never blanks the one the
+            // spreadsheet set.
             'dept_no' => '',
             'location_name' => self::text($row['locationName'] ?? null),
-            'dept_name' => self::text($row['orgName'] ?? null),
+            'dept_name' => self::text($row['department'] ?? null),
             'job_name' => self::text($row['jobName'] ?? null),
             'gender' => self::gender($row['gender'] ?? null),
 
             // Only the API carries these.
             'person_id' => self::text($row['personId'] ?? null),
-            'assignment_id' => self::text($row['assignmentId'] ?? null),
             'person_name_ar' => self::text($row['personNameAr'] ?? null),
-            'employee_category' => self::text($row['employeeCategory'] ?? null),
-            'assignment_status' => mb_strtoupper(self::text($row['assignmentStatusType'] ?? null) ?? '') ?: null,
-            'person_type' => self::text($row['personType'] ?? null),
+            // "Active" / "Inactive", staged upper-case so it reads the same as
+            // the ACTIVE / INACTIVE the /attendance view recorded before.
+            'assignment_status' => mb_strtoupper(self::text($row['status'] ?? null) ?? '') ?: null,
             'supervisor_name' => self::text($row['supervisorName'] ?? null),
             'manager_name' => self::text($row['managerName'] ?? null),
             'hire_date' => self::hireDate($row['startDate'] ?? null)?->toDateString(),
@@ -114,19 +98,22 @@ class EmployeeFacts
     }
 
     /**
-     * Is Oracle saying this person's assignment has ended?
+     * Is Oracle saying this person has left?
      *
-     * Only an explicit INACTIVE counts. Absence from the feed means nothing:
-     * the feed is the Saudi book, so every SSS Egypt employee is permanently
-     * absent from it, along with anyone Oracle has not onboarded yet.
+     * Oracle's rule (the API document of 2026-09-27): somebody is Active until
+     * their termination date arrives, then Inactive, and a month after that
+     * they drop out of the list altogether. So only an explicit INACTIVE
+     * counts. Absence from the feed means nothing: the feed is the Saudi book,
+     * so every SSS Egypt employee is permanently absent from it, along with
+     * anyone Oracle has not onboarded yet and anyone who left over a month ago.
      */
-    public static function isInactive(?string $assignmentStatus): bool
+    public static function isInactive(?string $status): bool
     {
-        return mb_strtoupper(trim((string) $assignmentStatus)) === 'INACTIVE';
+        return mb_strtoupper(trim((string) $status)) === 'INACTIVE';
     }
 
     /**
-     * Oracle's dd-MMM-yy hire date.
+     * Oracle's hire date: yyyy-MM-dd since 2026-09-27, dd-MMM-yy before.
      *
      * Bounded to plausible employment rather than to the vacation importer's
      * 2000-2100, which would reject the 21 people here hired before 2000. A
@@ -143,22 +130,29 @@ class EmployeeFacts
 
         $now ??= CarbonImmutable::now();
 
-        try {
+        if (preg_match('/^\d{4}-\d{2}-(\d{2})$/', $text, $m)) {
+            $format = '!Y-m-d';
+        } elseif (preg_match('/^(\d{1,2})-[A-Za-z]{3}-\d{2}$/', $text, $m)) {
             // ucfirst(strtolower()) so Oracle's OCT matches PHP's Oct — the
-            // same trick VacationImporter uses on the same date format.
-            $parsed = CarbonImmutable::createFromFormat('!d-M-y', ucfirst(mb_strtolower($text)));
+            // same trick VacationImporter uses on the same date format. PHP
+            // reads a two-digit year as 1970-1999 for 70-99, which is exactly
+            // right across the feed's 1988-2026.
+            $format = '!d-M-y';
+            $text = ucfirst(mb_strtolower($text));
+        } else {
+            return null;
+        }
+
+        try {
+            $parsed = CarbonImmutable::createFromFormat($format, $text);
         } catch (\Throwable) {
             return null;
         }
 
-        if (! $parsed) {
-            return null;
-        }
-
         // Carbon rolls an impossible day over rather than refusing it, so
-        // "31-FEB-20" comes back as 2 March. A hire date nobody can explain is
+        // 2020-02-31 comes back as 2 March. A hire date nobody can explain is
         // worse than none, so compare the day back against the input.
-        if (preg_match('/^\s*(\d{1,2})/', $text, $m) && (int) $m[1] !== $parsed->day) {
+        if (! $parsed || $parsed->day !== (int) $m[1]) {
             return null;
         }
 
@@ -167,6 +161,20 @@ class EmployeeFacts
         }
 
         return $parsed;
+    }
+
+    /**
+     * The phone as Oracle wrote it, or '' for none.
+     *
+     * 25 people carry a bare "-", Oracle's placeholder for no number. Staged
+     * as it stands, normalizeMobile() would report each as an unrecognised
+     * format on every pull, burying the few numbers that genuinely are.
+     */
+    private static function phone(mixed $value): string
+    {
+        $text = self::text($value) ?? '';
+
+        return preg_match('/\d/', $text) ? $text : '';
     }
 
     /** Oracle sends M or F; the NOC stores male/female, or nothing. */

@@ -217,6 +217,17 @@
        two headlines are legibly printed over each other. */
     transition:opacity .32s ease .22s, transform .32s ease .22s;
   }
+  .ann-slide-body{ display:flex; flex-direction:column; gap:8px; min-width:0; }
+  /* An Oracle notice's picture: beside the text, small, whole on a click. */
+  .ann-slide.has-picture{ flex-direction:row; align-items:center; justify-content:space-between; gap:20px; }
+  .ann-slide.has-picture .ann-slide-body{ flex:1; }
+  .ann-thumb{ flex-shrink:0; }
+  .ann-thumb img{
+    display:block; width:auto; height:auto;
+    max-height:120px; max-width:min(32vw, 220px);
+    border-radius:10px; box-shadow:0 6px 18px rgba(0,0,0,.35);
+  }
+  @media (max-width:560px){ .ann-thumb img{ max-height:84px; max-width:30vw; } }
   .ann-slide-top{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
   .ann-pill{
     font-size:10.5px;
@@ -233,7 +244,7 @@
   .ann-date{ font-size:12px; color:rgba(255,255,255,.6); }
   .ann-slide h3{ font-size:19px; font-weight:700; line-height:1.3; }
   .ann-slide p{ font-size:13.5px; line-height:1.55; color:rgba(255,255,255,.78); max-width:78ch; }
-  /* A notice with no text of its own — Oracle's carry a title and dates only.
+  /* A notice with no text of its own — most of Oracle's are a picture alone.
      The title carries the slide instead of sitting above an empty gap. */
   .ann-slide h3.ann-title-only{ font-size:22px; line-height:1.35; max-width:60ch; }
   .ann-slide a.ann-link{

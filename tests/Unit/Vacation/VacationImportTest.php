@@ -410,3 +410,25 @@ it('reads Oracle\'s sheets as Oracle writes them', function () {
         File::deleteDirectory($dir);
     }
 });
+
+it('keeps the records of a leave type the source does not send', function () {
+    // Oracle's API stopped sending Internal Business Trips on 2026-09-27. Its
+    // silence about each one is not a cancellation.
+    $importer = vacationImporter();
+    $trip = vacationRecordRow('1982', 'Internal Business Trip', '10-AUG-26', '10-AUG-26');
+    $leave = vacationRecordRow('1976', 'Annual Leave', '01-AUG-26', '02-AUG-26');
+    $sick = vacationRecordRow('1982', 'Sick Leave', '20-AUG-26', '20-AUG-26');
+
+    $importer->importAbsences('samirgroup', [$trip, $leave, $sick]);
+
+    $later = $importer->importAbsences('samirgroup', [$sick, vacationRecordRow('1982', 'Annual Leave', '01-AUG-26', '01-AUG-26')],
+        typesNotCarried: ['internal business trip']);
+
+    expect($later->removed)->toBe(1)
+        ->and(vacationRecord('1982', '2026-08-10')->removed_at)->toBeNull()
+        // A type it does send is still withdrawn when a record goes.
+        ->and(vacationRecord('1976', '2026-08-01')->removed_at)->not->toBeNull()
+        ->and(collect($later->notes ?? [])->contains(fn ($n) => str_contains($n, 'Internal Business Trip')))->toBeTrue()
+        // What the guard judges against: the sick day kept, the leave withdrawn.
+        ->and($later->heldInWindow())->toBe(2);
+});

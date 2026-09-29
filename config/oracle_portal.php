@@ -42,6 +42,17 @@ return [
     'default_upn_domain' => env('ORACLE_PORTAL_UPN_DOMAIN', 'samirgroup.com'),
 
     /*
+    | Leave types the API never sends. Their records, which the spreadsheet
+    | export and the pre-2026-09-27 API did send, are kept rather than read
+    | as cancelled on every pull: without this the first pull of the new
+    | release would have withdrawn 2,718 Internal Business Trips. A type that
+    | vanishes without being listed here trips the withdrawal guard instead
+    | (SyncGuards::refusesWithdrawals), which stops the pull.
+    */
+
+    'leave_types_not_sent' => ['Internal Business Trip'],
+
+    /*
     | The people Oracle filters out of its leave data live in
     | config/vacations.php under the book's `blocked` key, not here: an import
     | must not withdraw their held records, and that rule belongs to the
@@ -50,12 +61,17 @@ return [
     */
 
     /*
-    | Hire dates: Oracle writes them as dd-MMM-yy and the oldest in the feed is
-    | from 1988, so the vacation importer's 2000-2100 window (right for leave,
-    | which cannot be booked in 1995) would reject 21 people. The wider bound
-    | lives on EmployeeFacts::MIN_HIRE_YEAR rather than here, because that class
-    | is pure and a config lookup would make every test of it need a booted
+    | Hire dates: the oldest in the feed is from 1988, so the vacation
+    | importer's 2000-2100 window (right for leave, which cannot be booked in
+    | 1995) would reject 21 people. The wider bound lives on
+    | EmployeeFacts::MIN_HIRE_YEAR rather than here, because that class is pure
+    | and a config lookup would make every test of it need a booted
     | application.
+    |
+    | Since 2026-09-27 Oracle's API writes hire and leave dates a day early.
+    | There is deliberately no setting for that: DateOffset judges it from the
+    | leave dates on every run, so the day Oracle fixes it nothing here has to
+    | change.
     */
 
 ];

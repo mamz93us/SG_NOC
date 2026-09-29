@@ -881,8 +881,8 @@
                         @if($portalSettings->last_announcements_sync_at)
                             Last {{ $portalSettings->last_announcements_sync_at->diffForHumans() }}.
                         @endif
-                        <br><span class="text-muted">Oracle sends a title and dates only — no body text, and the
-                        picture is not reachable through the API.</span>
+                        <br><span class="text-muted">Title, dates, any text and link, and the designed picture,
+                        which the home portal shows beside the notice.</span>
                     </div>
                 </div>
                 <div class="col-md-3">
@@ -896,7 +896,8 @@
                         @if($portalSettings->last_employees_sync_at)
                             Last {{ $portalSettings->last_employees_sync_at->diffForHumans() }}.
                         @endif
-                        <br><span class="text-muted">Saudi book only — SSS Egypt is not in this feed.</span>
+                        <br><span class="text-muted">Saudi book only — SSS Egypt is not in this feed. Includes the
+                        Arabic name and mobile number.</span>
                     </div>
                 </div>
                 <div class="col-md-3">

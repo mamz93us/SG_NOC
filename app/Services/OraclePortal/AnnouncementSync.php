@@ -4,6 +4,7 @@ namespace App\Services\OraclePortal;
 
 use App\Models\ActivityLog;
 use App\Models\Announcement;
+use App\Models\AnnouncementImage;
 use App\Models\OraclePortal\PortalSetting;
 use App\Support\AnnouncementCache;
 use App\Support\Audit\Auditor;
@@ -19,13 +20,18 @@ use RuntimeException;
  * to `source = 'oracle'`, and the column defaults to 'manual', so a row nobody
  * marked as Oracle's can never be updated, unpublished or withdrawn here.
  *
- * What a synced notice actually contains is worth being plain about. Oracle
- * gives a subject, two dates and an image FILENAME — the DESCRIPTION column is
- * NULL for all 61 announcements, and the image bytes are unreachable, because
- * every path on that host outside /api answers 403. The picture is the real
- * notice. So these rows carry a bilingual title and its dates and nothing
- * else, and the mapper writes `body` anyway so that the day Oracle fills the
- * column in, the next pull fills it here with no code change.
+ * What a synced notice contains: a subject, two dates, and — since Oracle's
+ * release of 2026-09-27 — a description that is the notice's HTML with its
+ * designed picture inlined. The picture is the real notice for 57 of 61. The
+ * mapper turns the description into plain text and a link, and the pictures
+ * are kept in announcement_images, served to the home portal by
+ * HomeAnnouncementController::image(). They are Oracle's alone: nothing here
+ * edits them, so every pull makes them match Oracle.
+ *
+ * In the database rather than on disk on purpose. This runs as `azureuser`
+ * from the scheduler and the pictures are served by PHP-FPM as `www-data`,
+ * and a directory one of them creates the other cannot open — the trap the
+ * PDF import fell into on its first run.
  *
  * A row that leaves the feed is withdrawn, never deleted: announcement_reads
  * has no cascade, so deleting would orphan read state, and by then the row may
@@ -114,6 +120,15 @@ class AnnouncementSync
         $held = Announcement::query()->fromOracle()->get()->keyBy('external_id');
         $seen = [];
 
+        // announcement id => the pictures' sha1s in order. Never the bytes:
+        // 61 notices of pictures is ~12 MB, and comparing needs only these.
+        $pictures = AnnouncementImage::query()
+            ->whereIn('announcement_id', $held->pluck('id'))
+            ->orderBy('position')
+            ->get(['announcement_id', 'sha1'])
+            ->groupBy('announcement_id')
+            ->map(fn ($rows) => $rows->pluck('sha1')->all());
+
         foreach ($rows as $row) {
             $mapped = AnnouncementMapper::map($row, $now);
 
@@ -131,7 +146,7 @@ class AnnouncementSync
                 continue;
             }
 
-            $this->update($existing, $mapped, $now, $counts);
+            $this->update($existing, $mapped, $now, $counts, $pictures->get($existing->id, []));
         }
 
         foreach ($held as $externalId => $announcement) {
@@ -147,18 +162,18 @@ class AnnouncementSync
     }
 
     /**
-     * A new notice goes live as it stands: title and dates, no body, no
-     * picture. Oracle has no audience or severity, so it is an ordinary
-     * company-wide `info` notice, and an admin changing either keeps their
-     * change — neither is ever written again.
+     * A new notice goes live as it stands. Oracle has no audience or
+     * severity, so it is an ordinary company-wide `info` notice, and an admin
+     * changing either keeps their change — neither is ever written again.
      */
     private function create(array $mapped, CarbonImmutable $now): void
     {
-        Announcement::create([
+        $announcement = Announcement::create([
             'source' => Announcement::SOURCE_ORACLE,
             'external_id' => $mapped['external_id'],
             'title' => $mapped['title'],
             'body' => $mapped['body'],
+            'link_url' => $mapped['link_url'],
             'external_image_name' => $mapped['external_image_name'],
             'published_at' => $mapped['published_at'],
             'expires_at' => $mapped['expires_at'],
@@ -170,9 +185,14 @@ class AnnouncementSync
             'synced_at' => $now,
             'synced_fields' => AnnouncementMapper::snapshot($mapped),
         ]);
+
+        $this->replacePictures($announcement, $mapped['images']);
     }
 
-    private function update(Announcement $announcement, array $mapped, CarbonImmutable $now, array &$counts): void
+    /**
+     * @param  list<string>  $heldPictures  the sha1s held now, in order
+     */
+    private function update(Announcement $announcement, array $mapped, CarbonImmutable $now, array &$counts, array $heldPictures): void
     {
         $snapshot = is_array($announcement->synced_fields) ? $announcement->synced_fields : [];
 
@@ -211,6 +231,12 @@ class AnnouncementSync
         // it, so it is refreshed unconditionally.
         if ($announcement->external_image_name !== $mapped['external_image_name']) {
             $announcement->external_image_name = $mapped['external_image_name'];
+            $changed = true;
+        }
+
+        // The pictures likewise.
+        if (array_column($mapped['images'], 'sha1') !== $heldPictures) {
+            $this->replacePictures($announcement, $mapped['images']);
             $changed = true;
         }
 
@@ -255,6 +281,25 @@ class AnnouncementSync
         $announcement->synced_at = $now;
         $announcement->synced_fields = $snapshot;
         $announcement->save();
+    }
+
+    /**
+     * @param  list<array{mime: string, bytes: string, sha1: string}>  $images
+     */
+    private function replacePictures(Announcement $announcement, array $images): void
+    {
+        AnnouncementImage::query()->where('announcement_id', $announcement->id)->delete();
+
+        foreach (array_values($images) as $position => $image) {
+            AnnouncementImage::create([
+                'announcement_id' => $announcement->id,
+                'position' => $position,
+                'mime' => $image['mime'],
+                'sha1' => $image['sha1'],
+                'size' => strlen($image['bytes']),
+                'bytes' => $image['bytes'],
+            ]);
+        }
     }
 
     private function changedAnything(array $counts): bool

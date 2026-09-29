@@ -7,26 +7,25 @@ namespace App\Services\OraclePortal;
  * already accepts.
  *
  * This is deliberately nothing but a key rename. Every judgement about the
- * values — the dd-MMM-yy dates, the figure bounds, a person number arriving as
+ * values — the dates, the figure bounds, a person number arriving as
  * "916.0", the sign of `absences` — belongs to the importer, which the
  * spreadsheet path goes through too. Two sources that parse their own values
  * are two sources that can disagree about the same person.
  *
- * Three details of the feed, verified against production on 2026-09-20:
+ * Three details of the feed, verified against production on 2026-09-20 and
+ * again on 2026-09-29:
  *
- *  - **`absences` is negative** (-2, -8, …) in all 525 non-zero rows. It is
+ *  - **`absences` is negative** (-2, -8, …) in every non-zero row. It is
  *    passed on unchanged: the importer calls negated() on it and stores a
  *    positive `used`. "Fixing" the sign here would zero everyone's used days.
  *  - **Null fields are omitted**, not sent as null, so carryover is present on
  *    536 of 602 rows. `?? null` throughout, and the importer reads a missing
  *    figure as null rather than nought.
- *  - **The balance feed carries no personId**, and neither does /employees —
- *    only /attendance does, for all 617 people. So that is where the id map
- *    comes from, and it is what fills vacation_employees.oracle_person_id, a
- *    column the spreadsheet path could only fill for the people both of its
- *    sheets named. Worth being exact about: /employees looks like the cheaper
- *    source at 213 KB against 381 KB, but it would silently produce an empty
- *    map.
+ *  - **The balance feed carries no personId**; /employees does, for all 617
+ *    people (until 2026-09-27 only the retired /attendance view did). So that
+ *    is where the id map comes from, and it is what fills
+ *    vacation_employees.oracle_person_id, a column the spreadsheet path could
+ *    only fill for the people both of its sheets named.
  */
 class VacationRows
 {
@@ -80,12 +79,11 @@ class VacationRows
     }
 
     /**
-     * personNumber => personId, from an /employees or /attendance payload.
+     * personNumber => personId, from an /employees payload.
      *
-     * Only /attendance carries personId; /employees does not. Callers pass
-     * whichever they fetched, and a payload without the column simply yields
-     * an empty map rather than failing — the person ids are an enrichment, not
-     * something a leave import depends on.
+     * A payload without the column simply yields an empty map rather than
+     * failing — the person ids are an enrichment, not something a leave
+     * import depends on.
      *
      * @param  list<array<string,mixed>>  $rows
      * @return array<string,string>

@@ -110,11 +110,11 @@ class OracleHrImportService
      * ambiguous row refused rather than guessed, nothing written until someone
      * applies it — applies unchanged.
      *
-     * @param  list<array<string,mixed>>  $attendanceRows  an /attendance payload
+     * @param  list<array<string,mixed>>  $employeeRows  an /employees payload
      */
-    public function fromApi(array $attendanceRows, string $label, ?int $userId = null): HrImportBatch
+    public function fromApi(array $employeeRows, string $label, ?int $userId = null): HrImportBatch
     {
-        $rows = EmployeeFacts::rows($attendanceRows);
+        $rows = EmployeeFacts::rows($employeeRows);
 
         if ($rows === []) {
             throw new \RuntimeException('Oracle returned no employees.');
@@ -808,12 +808,16 @@ class OracleHrImportService
     {
         $attrs = [
             'oracle_emp_no' => $row->emp_no,
-            'oracle_dept_no' => $row->dept_no,
             'oracle_department' => $row->dept_name,
             'oracle_location' => $row->location_name,
             'oracle_synced_at' => now(),
         ];
 
+        // Oracle's API has no DEPT NO, so an API row carries none, and writing
+        // that null would erase the one the spreadsheet set.
+        if ($row->dept_no) {
+            $attrs['oracle_dept_no'] = $row->dept_no;
+        }
         if ($row->mobile_normalized) {
             $attrs['mobile_phone'] = $row->mobile_normalized;
         }
@@ -830,7 +834,9 @@ class OracleHrImportService
         // From the Employee Portal API only; a spreadsheet row leaves these
         // null, and the never-blank rule above means a sheet import can no
         // longer erase what an API pull filled in — or the other way round for
-        // the mobile number and DEPT NO the API does not carry.
+        // the DEPT NO the API does not carry. The category and person type
+        // came from the /attendance view Oracle retired on 2026-09-27; what it
+        // last recorded stays, because nothing writes a blank over it.
         if ($row->person_id) {
             $attrs['oracle_person_id'] = $row->person_id;
         }
@@ -852,9 +858,8 @@ class OracleHrImportService
             $attrs['hired_date'] = $row->hire_date;
         }
 
-        // Arabic name: NOC-editable, and Oracle wins once it has one. Oracle's
-        // PERSON_NAME_AR is empty for all 617 people today, so in practice a
-        // name typed here stands until HR fills the column in.
+        // Arabic name: NOC-editable, and Oracle wins once it has one — which,
+        // since 2026-09-27, it does for everybody in the feed.
         if ($row->person_name_ar) {
             $attrs['name_ar'] = $row->person_name_ar;
         }

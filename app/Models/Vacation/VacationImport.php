@@ -72,6 +72,15 @@ class VacationImport extends Model
         return $this->kind === self::KIND_BALANCES ? 'Balances' : 'Leave records';
     }
 
+    /**
+     * The live records this import's window held before it ran — the ones it
+     * kept, changed or withdrew. What a withdrawal count is judged against.
+     */
+    public function heldInWindow(): int
+    {
+        return (int) $this->unchanged + (int) $this->updated + (int) $this->removed;
+    }
+
     /** One line for the flash message and the activity log. */
     public function summary(): string
     {

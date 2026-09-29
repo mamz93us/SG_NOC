@@ -102,4 +102,28 @@ class PortalBook
     {
         return (string) config('oracle_portal.book.key', 'samirgroup');
     }
+
+    /**
+     * The book's weekend as Carbon day numbers, from config/vacations.php —
+     * the same days the leave importer does not count. Friday and Saturday
+     * if the book names none.
+     *
+     * @return list<int>
+     */
+    public function weekend(): array
+    {
+        return array_map('intval', (array) config('vacations.books.'.$this->key().'.weekend', [5, 6]));
+    }
+
+    /**
+     * The days to add to Oracle's employee and leave dates — see DateOffset.
+     *
+     * @param  list<array<string,mixed>>  $leaveRows  a /vacationDetails payload
+     *
+     * @throws \RuntimeException when the leave dates do not say clearly
+     */
+    public function dateOffset(array $leaveRows): int
+    {
+        return DateOffset::detect(array_column($leaveRows, 'startDate'), $this->weekend());
+    }
 }

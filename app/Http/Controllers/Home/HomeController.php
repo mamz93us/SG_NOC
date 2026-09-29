@@ -317,7 +317,7 @@ class HomeController extends Controller
             return Cache::remember(
                 $key,
                 now()->addMinutes(AnnouncementCache::TTL_MINUTES),
-                fn () => Announcement::liveFor($employee)->limit(12)->get()
+                fn () => Announcement::liveFor($employee)->withPictures()->limit(12)->get()
             );
         } catch (\Throwable) {
             return collect();
