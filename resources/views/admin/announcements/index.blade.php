@@ -58,6 +58,16 @@
                 @forelse($announcements as $ann)
                     <tr>
                         <td>
+                            <div class="d-flex gap-2 align-items-start">
+                            @if($picture = $ann->pictures()->first())
+                                <a href="{{ route('admin.announcements.picture', [$ann, $picture->position, 'v' => substr($picture->sha1, 0, 12)]) }}"
+                                   target="_blank" rel="noopener" class="flex-shrink-0" title="Open the picture Oracle sent">
+                                    <img src="{{ route('admin.announcements.picture', [$ann, $picture->position, 'v' => substr($picture->sha1, 0, 12)]) }}"
+                                         alt="" loading="lazy" class="rounded border"
+                                         style="width:56px;height:56px;object-fit:cover">
+                                </a>
+                            @endif
+                            <div class="min-w-0">
                             <div class="fw-semibold">
                                 @if($ann->pinned)
                                     <i class="bi bi-pin-angle-fill text-warning me-1" title="Pinned"></i>
@@ -79,15 +89,19 @@
                             <div class="small text-muted text-truncate" style="max-width:420px">
                                 @if(filled($ann->body))
                                     {{ $ann->excerpt(110) }}
-                                @elseif($ann->external_image_name)
-                                    {{-- Oracle's notices are a designed image, and its bytes are not
-                                         reachable through the API — only the file's name is. Showing it
-                                         is what tells whoever is looking which notice this actually is. --}}
-                                    <i class="bi bi-image me-1"></i>{{ $ann->external_image_name }}
-                                    <span class="text-body-tertiary">&mdash; picture not available from Oracle</span>
+                                @elseif($ann->pictures()->isNotEmpty())
+                                    {{-- Most of Oracle's notices are the designed picture alone:
+                                         the picture is the body. --}}
+                                    <i class="bi bi-image me-1"></i>Picture only
+                                    @if($ann->pictures()->count() > 1)
+                                        ({{ $ann->pictures()->count() }})
+                                    @endif
+                                    <span class="text-body-tertiary">&mdash; Oracle sent no text</span>
                                 @else
                                     <span class="text-body-tertiary">No text</span>
                                 @endif
+                            </div>
+                            </div>
                             </div>
                         </td>
                         <td>
