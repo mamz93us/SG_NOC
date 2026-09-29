@@ -138,3 +138,41 @@ it('defaults existing import batches to the sheet source', function () {
 
     expect(DB::table('hr_import_batches')->value('source'))->toBe('sheet');
 });
+
+it('creates the announcement pictures table, and survives a re-run', function () {
+    Schema::dropIfExists('announcement_images');
+    Schema::create('announcements', function (Blueprint $t) {
+        $t->id();
+        $t->string('title', 200);
+        $t->text('body');
+        $t->timestamps();
+    });
+
+    runPortalMigration('create_announcement_images_table');
+    runPortalMigration('create_announcement_images_table');
+
+    expect(Schema::hasColumns('announcement_images', [
+        'announcement_id', 'position', 'mime', 'sha1', 'size', 'bytes',
+    ]))->toBeTrue();
+});
+
+it('forgets only the leave-record baseline, never the key or the switches', function () {
+    runPortalMigration('create_oracle_portal_settings_table');
+
+    DB::table('oracle_portal_settings')->insert([
+        'enabled' => true, 'api_key' => 'encrypted-key', 'sync_vacations' => true,
+        'last_vacation_records_count' => 7668, 'last_vacation_balances_count' => 602,
+        'last_employees_count' => 617, 'created_at' => now(), 'updated_at' => now(),
+    ]);
+
+    runPortalMigration('reset_oracle_portal_leave_record_baseline');
+
+    $row = DB::table('oracle_portal_settings')->first();
+
+    expect($row->last_vacation_records_count)->toBeNull()
+        ->and($row->api_key)->toBe('encrypted-key')
+        ->and((bool) $row->enabled)->toBeTrue()
+        ->and((bool) $row->sync_vacations)->toBeTrue()
+        ->and((int) $row->last_vacation_balances_count)->toBe(602)
+        ->and((int) $row->last_employees_count)->toBe(617);
+});

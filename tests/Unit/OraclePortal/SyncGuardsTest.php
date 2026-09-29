@@ -77,3 +77,25 @@ it('explains a refusal in a sentence', function () {
     expect(SyncGuards::leaverReason(26, 200))
         ->toContain('26')->toContain('200');
 });
+
+// ─── Leave withdrawals ────────────────────────────────────────────
+
+it('refuses a leave pull that would withdraw most of what it covers', function () {
+    // The first dry run of Oracle's 2026-09-27 release: a day's shift in its
+    // dates and a leave type it stopped sending.
+    expect(SyncGuards::refusesWithdrawals(3285, 3299))->toBeTrue();
+});
+
+it('lets ordinary cancellations through', function () {
+    // The same release once corrected: 3 of 581.
+    expect(SyncGuards::refusesWithdrawals(3, 581))->toBeFalse();
+    // Many, but a small share of a big window.
+    expect(SyncGuards::refusesWithdrawals(40, 1000))->toBeFalse();
+    // A large share, but few: a quiet book losing a handful.
+    expect(SyncGuards::refusesWithdrawals(20, 30))->toBeFalse();
+    expect(SyncGuards::refusesWithdrawals(0, 0))->toBeFalse();
+});
+
+it('explains a withdrawal refusal in a sentence', function () {
+    expect(SyncGuards::withdrawalReason(3285, 3299))->toContain('3285')->toContain('3299');
+});

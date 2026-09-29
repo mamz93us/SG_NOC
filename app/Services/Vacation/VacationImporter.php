@@ -172,6 +172,9 @@ class VacationImporter
      *                                                     `row` names the sheet row in notes
      * @param  bool  $withdrawMissing  the rows are Oracle's whole list from their earliest start date on, as
      *                                 an export is; false for a feed that sends only some records
+     * @param  list<string>  $typesNotCarried  absence types this source never sends, so their held records
+     *                                         are never withdrawn by it — Oracle's API has no Internal Business
+     *                                         Trips, where the spreadsheet export does
      */
     public function importAbsences(
         string $book,
@@ -180,6 +183,7 @@ class VacationImporter
         ?string $filename = null,
         ?int $userId = null,
         bool $withdrawMissing = true,
+        array $typesNotCarried = [],
     ): VacationImport {
         $this->assertBook($book);
         $weekend = VacationEmployee::books()[$book]['weekend'] ?? [];
@@ -237,7 +241,7 @@ class VacationImporter
         $from = $starts ? min($starts) : null;
         $to = $starts ? max($starts) : null;
 
-        return $this->transaction(function () use ($book, $source, $filename, $userId, $withdrawMissing, $records, $read, $skipped, $notes, $from, $to) {
+        return $this->transaction(function () use ($book, $source, $filename, $userId, $withdrawMissing, $typesNotCarried, $records, $read, $skipped, $notes, $from, $to) {
             $import = VacationImport::create([
                 'book' => $book,
                 'kind' => VacationImport::KIND_ABSENCES,
@@ -340,7 +344,21 @@ class VacationImporter
                 // their history one import at a time.
                 $blocked = $this->blockedNumbers($book);
 
-                $missing = $held->filter(fn ($row) => $row->removed_at === null && ! isset($seen[$row->id]));
+                // A type the source never sends says nothing about any one
+                // record of it. Oracle's API release of 2026-09-27 stopped
+                // sending Internal Business Trips — 2,718 of the 3,299 records
+                // its window held — and each would otherwise read as cancelled.
+                $notCarried = array_fill_keys(array_map('mb_strtolower', $typesNotCarried), true);
+                $isCarried = fn ($row) => ! isset($notCarried[mb_strtolower((string) $row->absence_type)]);
+
+                $unsent = $held->filter(fn ($row) => $row->removed_at === null && ! isset($seen[$row->id]) && ! $isCarried($row));
+
+                if ($unsent->isNotEmpty()) {
+                    $this->note($notes, "{$unsent->count()} records of a type this source does not send ("
+                        .$unsent->pluck('absence_type')->unique()->sort()->implode(', ').') were kept rather than withdrawn.');
+                }
+
+                $missing = $held->filter(fn ($row) => $row->removed_at === null && ! isset($seen[$row->id]) && $isCarried($row));
 
                 $isBlocked = fn ($row) => isset($blocked[ltrim(trim((string) $row->oracle_emp_no), '0')]);
 

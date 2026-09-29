@@ -28,16 +28,19 @@ use RuntimeException;
  *    first run, try to disable every Egyptian employee's account. That is
  *    wrong semantics, not a threshold that needs tuning — no count guard makes
  *    it right.
- *  - **INACTIVE is an assignment status, not a person's.** The view returns one
- *    row per person with one assignmentId, so it cannot show that ALL of
- *    somebody's assignments have ended: a mid-transfer employee looks exactly
- *    like a leaver. Nine rows say INACTIVE today, which is a minute of
- *    somebody's attention against the cost of locking a working colleague out
- *    of their mailbox.
+ *  - **Inactive is Oracle's word, not a decision.** Oracle marks somebody
+ *    Inactive once their termination date arrives and keeps them in the list
+ *    for a month. A termination date keyed in by mistake, or one that is
+ *    reversed a week later, reads exactly the same. Six rows say Inactive
+ *    today, which is a minute of somebody's attention against the cost of
+ *    locking a working colleague out of their mailbox.
  *
  * So what Oracle says is recorded — `employees.oracle_assignment_status` — and
  * what the NOC does about it stays a person's decision. Those two columns being
  * separate is the whole safety design.
+ *
+ * Hire dates arrive a day early from Oracle's API; {@see DateOffset} judges
+ * that from the leave feed on every run and corrects it, or stops the run.
  *
  * Everything consequential (job title, department, branch, category, Arabic
  * name, hire date) still goes through the existing review page, because the
@@ -57,7 +60,7 @@ class EmployeeSync
 
     /**
      * @return array{batch: ?HrImportBatch, rows: int, unchanged: bool, inactive: int,
-     *               recorded: int, leavers_refused: bool, dry_run: bool}
+     *               recorded: int, leavers_refused: bool, date_offset: int, dry_run: bool}
      *
      * @throws RuntimeException when the response is too small to act on
      */
@@ -69,9 +72,7 @@ class EmployeeSync
             throw new RuntimeException($issue);
         }
 
-        // /attendance, not /employees: same people, more columns, and the only
-        // one carrying personId.
-        $rows = $this->api->attendance(null, null, $settings);
+        $rows = $this->api->employees(null, $settings);
 
         if (SyncGuards::refusesPayload(count($rows), $settings->last_employees_count, self::FLOOR)) {
             throw new RuntimeException(SyncGuards::payloadReason(
@@ -84,6 +85,11 @@ class EmployeeSync
         // from an SSS Egypt one holding the same Oracle number.
         $this->book->branchIds();
 
+        // Before anything is mapped, so the digest, the staged rows and the
+        // review page all see the corrected date.
+        $offset = $this->book->dateOffset($this->api->vacationDetails(null, $settings));
+        $rows = DateOffset::shift($rows, ['startDate'], $offset);
+
         $facts = EmployeeFacts::rows($rows);
         $digest = OracleHrImportService::digestOf($facts);
         $previous = HrImportBatch::query()->where('source', 'api')->latest('id')->first();
@@ -95,6 +101,7 @@ class EmployeeSync
             'inactive' => 0,
             'recorded' => 0,
             'leavers_refused' => false,
+            'date_offset' => $offset,
             'dry_run' => $dryRun,
         ];
 
@@ -117,8 +124,8 @@ class EmployeeSync
 
         // The importer is handed Oracle's own payload and maps it with
         // EmployeeFacts itself, so the mapping happens in exactly one place.
-        // Mapping here and un-mapping for the importer would silently drop
-        // every hire date: the facts hold Y-m-d and the parser reads dd-MMM-yy.
+        // Mapping here and un-mapping for the importer would give the two a
+        // way to disagree about the same row.
         $run = function () use ($rows, $facts, $label, $userId, &$result) {
             $result['batch'] = $this->importer->fromApi($rows, $label, $userId);
 
@@ -263,6 +270,7 @@ class EmployeeSync
                 'inactive_in_oracle' => $result['inactive'],
                 'statuses_recorded' => $result['recorded'],
                 'leavers_refused' => $result['leavers_refused'],
+                'date_offset_days' => $result['date_offset'],
             ],
             'user_id' => $userId,
         ]);

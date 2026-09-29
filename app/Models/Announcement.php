@@ -59,6 +59,34 @@ class Announcement extends Model
         return $this->hasMany(AnnouncementRead::class);
     }
 
+    /** The pictures an Oracle notice carries, in page order. */
+    public function images(): HasMany
+    {
+        return $this->hasMany(AnnouncementImage::class)->orderBy('position');
+    }
+
+    /**
+     * Eager-load which pictures each notice has — never their bytes, which
+     * are served one at a time by HomeAnnouncementController::image().
+     */
+    public function scopeWithPictures(Builder $query): Builder
+    {
+        return $query->with(['images' => fn ($q) => $q->select(['id', 'announcement_id', 'position', 'sha1'])]);
+    }
+
+    /**
+     * The pictures loaded by withPictures(), or none.
+     *
+     * Never lazy-loads: that would select the bytes of every picture on the
+     * page — and a home page cached before this existed has no relation.
+     *
+     * @return \Illuminate\Support\Collection<int, AnnouncementImage>
+     */
+    public function pictures(): \Illuminate\Support\Collection
+    {
+        return $this->relationLoaded('images') ? $this->getRelation('images') : collect();
+    }
+
     /**
      * Published, already live, not yet expired.
      *

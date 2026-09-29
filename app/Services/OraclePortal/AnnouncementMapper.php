@@ -8,8 +8,15 @@ use Carbon\CarbonImmutable;
  * One Oracle announcement turned into announcement columns.
  *
  * Pure: no database, no clock beyond what it is handed, no HTTP. It is where
- * the two judgements about this feed live, both of which would be invisible
- * bugs rather than loud ones.
+ * the judgements about this feed live, all of which would be invisible bugs
+ * rather than loud ones.
+ *
+ * **The description is taken apart, never stored.** It is base64-encoded HTML
+ * with the designed picture inlined ({@see AnnouncementContent}): the text
+ * becomes `body`, the first link `link_url`, and the pictures are handed back
+ * for the sync to keep beside the row. Written into `body` as it stands, it
+ * overflowed the TEXT column on every hourly pull from 2026-09-28 — and had it
+ * fitted, every company PC would have shown a screen of base64.
  *
  * **The subject is not split into title and title_ar.** It is tempting: 39 of
  * 61 subjects carry both scripts. But no rule survives the real data —
@@ -40,12 +47,13 @@ class AnnouncementMapper
      *
      * @var list<string>
      */
-    public const MANAGED = ['title', 'body', 'published_at', 'expires_at'];
+    public const MANAGED = ['title', 'body', 'link_url', 'published_at', 'expires_at'];
 
     /**
      * @param  array<string,mixed>  $row  one row of /announcements
      * @param  CarbonImmutable|null  $now  for the isExpired clamp; defaults to the real clock
-     * @return array<string,mixed>|null null when the row has no usable id
+     * @return array<string,mixed>|null null when the row has no usable id;
+     *                                  `images` is not a column, it is for the sync
      */
     public static function map(array $row, ?CarbonImmutable $now = null): ?array
     {
@@ -68,18 +76,19 @@ class AnnouncementMapper
             $expires = $now;
         }
 
+        $content = AnnouncementContent::parse($row['description'] ?? null);
+
         return [
             'external_id' => $id,
             'title' => mb_substr(self::text($row['subject'] ?? null) ?? 'Announcement '.$id, 0, self::TITLE_LIMIT),
-            // Oracle's DESCRIPTION is NULL for every announcement today, and
-            // announcements.body is NOT NULL, so this is ''. It is mapped
-            // anyway: the day HR fills the column in Oracle, the merge rule
-            // sees the held '' is still exactly what the sync wrote and fills
-            // the body in, with no code change and no migration.
-            'body' => self::text($row['description'] ?? null) ?? '',
+            // announcements.body is NOT NULL, so a notice that is only a
+            // picture — 57 of 61 — has ''.
+            'body' => $content['text'],
+            'link_url' => $content['link'],
             'external_image_name' => self::text($row['imageName'] ?? null),
             'published_at' => $published,
             'expires_at' => $expires,
+            'images' => $content['images'],
         ];
     }
 
@@ -104,9 +113,13 @@ class AnnouncementMapper
 
         foreach (self::MANAGED as $column) {
             // Never written before (a row created before this feature, or a
-            // new column): treat it as the sync's to fill.
+            // column the sync took on later, as it did link_url): the sync's
+            // to fill only while it is empty. A value already there was put
+            // there by somebody, and silence is not permission to replace it.
             if (! array_key_exists($column, $lastWrote)) {
-                $writable[] = $column;
+                if (self::blank($held[$column] ?? null)) {
+                    $writable[] = $column;
+                }
 
                 continue;
             }
@@ -166,10 +179,14 @@ class AnnouncementMapper
         return self::scalarOf($value);
     }
 
+    private static function blank(mixed $value): bool
+    {
+        return $value === null || (is_string($value) && trim($value) === '');
+    }
+
     /**
-     * Oracle writes announcement dates as yyyy-MM-dd — unlike its employee and
-     * leave dates, which are dd-MMM-yy. Anything else is treated as absent
-     * rather than guessed at.
+     * Oracle writes every date as yyyy-MM-dd. Anything else is treated as
+     * absent rather than guessed at.
      */
     private static function date(mixed $value): ?CarbonImmutable
     {

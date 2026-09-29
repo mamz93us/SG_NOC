@@ -97,17 +97,33 @@ it('keeps a subject with no separator at all whole', function () {
         ->toBe($subject);
 });
 
-it('writes an empty body, because Oracle has no text for any announcement', function () {
+it('writes an empty body for a notice with no description', function () {
     // announcements.body is NOT NULL, so this must be '' and not null.
     $mapped = AnnouncementMapper::map(['announcementId' => '1', 'subject' => 'x']);
 
-    expect($mapped['body'])->toBe('');
+    expect($mapped['body'])->toBe('')
+        ->and($mapped['images'])->toBe([])
+        ->and($mapped['link_url'])->toBeNull();
 });
 
-it('fills the body the day Oracle starts sending one', function () {
-    // The point of mapping a column that is empty everywhere today: nothing
-    // needs changing here when HR fills DESCRIPTION in. The merge rule sees
-    // the held '' is still what the sync wrote, so the text simply arrives.
+it('takes a base64 description apart instead of storing it', function () {
+    // Written into body as it stands, this overflowed the TEXT column on every
+    // hourly pull from 2026-09-28 — and would have put a screen of base64 on
+    // every company PC had it fitted.
+    $html = '<div style="text-align:center"><img src="'.announcementPngUri().'" alt="" /></div>'
+        .'<p>The office closes at <b>2pm</b>.</p><a href="https://portal.example.com/register">Register</a>';
+
+    $mapped = AnnouncementMapper::map([
+        'announcementId' => '1', 'subject' => 'x', 'description' => base64_encode($html),
+    ]);
+
+    expect($mapped['body'])->toBe("The office closes at 2pm.\nRegister")
+        ->and($mapped['link_url'])->toBe('https://portal.example.com/register')
+        ->and($mapped['images'])->toHaveCount(1)
+        ->and($mapped['images'][0]['mime'])->toBe('image/png');
+});
+
+it('reads plain text as it stands', function () {
     $mapped = AnnouncementMapper::map([
         'announcementId' => '1', 'subject' => 'x', 'description' => 'The office closes at 2pm.',
     ]);
@@ -137,11 +153,11 @@ it('ignores a date it cannot read rather than guessing', function () {
 // ─── The merge rule: an edit made here survives the next pull ──────
 
 it('refreshes a field that still holds what the sync wrote', function () {
-    $held = ['title' => 'Oracle title', 'body' => '', 'published_at' => null, 'expires_at' => null];
-    $wrote = ['title' => 'Oracle title', 'body' => '', 'published_at' => null, 'expires_at' => null];
+    $held = ['title' => 'Oracle title', 'body' => '', 'link_url' => null, 'published_at' => null, 'expires_at' => null];
+    $wrote = ['title' => 'Oracle title', 'body' => '', 'link_url' => null, 'published_at' => null, 'expires_at' => null];
 
     expect(AnnouncementMapper::writableColumns($held, $wrote))
-        ->toBe(['title', 'body', 'published_at', 'expires_at']);
+        ->toBe(['title', 'body', 'link_url', 'published_at', 'expires_at']);
 });
 
 it('leaves a field somebody edited here alone', function () {
@@ -162,12 +178,16 @@ it('takes a field back when somebody restores Oracle\'s own text', function () {
     expect(AnnouncementMapper::writableColumns($held, $wrote))->toContain('title');
 });
 
-it('claims a column it has never written before', function () {
-    // A row from before this feature, or a column added later: there is no
-    // snapshot to compare with, so the sync fills it rather than treating
-    // silence as somebody's edit.
-    expect(AnnouncementMapper::writableColumns(['title' => 'x'], []))
-        ->toBe(['title', 'body', 'published_at', 'expires_at']);
+it('claims a column it has never written before only while it is empty', function () {
+    // A row from before this feature, or a column the sync took on later, as
+    // it did link_url on 2026-09-29: there is no snapshot to compare with. An
+    // empty column is the sync's to fill; a value is somebody's, and silence
+    // is not permission to replace it.
+    expect(AnnouncementMapper::writableColumns(['title' => 'x', 'link_url' => 'https://set.by/admin'], []))
+        ->toBe(['body', 'published_at', 'expires_at']);
+
+    expect(AnnouncementMapper::writableColumns(['title' => 'x', 'body' => '', 'link_url' => null], ['title' => 'x']))
+        ->toBe(['title', 'body', 'link_url', 'published_at', 'expires_at']);
 });
 
 it('compares a Carbon date against the stored snapshot string', function () {
@@ -177,6 +197,7 @@ it('compares a Carbon date against the stored snapshot string', function () {
     $held = [
         'title' => 'x',
         'body' => '',
+        'link_url' => null,
         'published_at' => CarbonImmutable::parse('2026-09-17 00:00:00'),
         'expires_at' => CarbonImmutable::parse('2026-09-24 23:59:59'),
     ];
@@ -185,7 +206,7 @@ it('compares a Carbon date against the stored snapshot string', function () {
     $roundTripped = json_decode(json_encode($snapshot), true);
 
     expect(AnnouncementMapper::writableColumns($held, $roundTripped))
-        ->toBe(['title', 'body', 'published_at', 'expires_at']);
+        ->toBe(['title', 'body', 'link_url', 'published_at', 'expires_at']);
 });
 
 it('stores dates in the snapshot as plain strings', function () {
@@ -197,5 +218,12 @@ it('stores dates in the snapshot as plain strings', function () {
 
     expect($snapshot['published_at'])->toBe('2026-09-17 00:00:00');
     expect($snapshot['expires_at'])->toBeNull();
-    expect($snapshot)->toHaveKeys(['title', 'body', 'published_at', 'expires_at']);
+    expect($snapshot)->toHaveKeys(['title', 'body', 'link_url', 'published_at', 'expires_at'])
+        ->and($snapshot)->not->toHaveKey('images');
 });
+
+/** A real 1×1 PNG as a data URI, the shape Oracle inlines its pictures in. */
+function announcementPngUri(): string
+{
+    return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+}

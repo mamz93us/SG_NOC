@@ -33,6 +33,12 @@ final class SyncGuards
     /** A response smaller than this share of the last good one is not believed. */
     public const MIN_PAYLOAD_SHARE = 0.50;
 
+    /** A leave pull may not withdraw more than this many held records … */
+    public const MAX_WITHDRAWALS = 25;
+
+    /** … nor more than this share of those its window covered. Both must trip. */
+    public const MAX_WITHDRAWAL_SHARE = 0.10;
+
     /**
      * Is this response too small to act on?
      *
@@ -86,6 +92,28 @@ final class SyncGuards
 
         return "Oracle returned {$received} {$noun}, fewer than the {$floor} expected on a first run, "
             .'so nothing was changed.';
+    }
+
+    /**
+     * Would this leave pull withdraw so many held records that the feed is
+     * more likely broken than that many were cancelled?
+     *
+     * `$held` is every record the pull's window covered before it ran. The
+     * first dry run of Oracle's 2026-09-27 release would have withdrawn 3,285
+     * of 3,299, from a day's shift in its dates and a leave type it stopped
+     * sending.
+     */
+    public static function refusesWithdrawals(int $withdrawn, int $held): bool
+    {
+        return $withdrawn > self::MAX_WITHDRAWALS
+            && $held > 0
+            && $withdrawn > $held * self::MAX_WITHDRAWAL_SHARE;
+    }
+
+    public static function withdrawalReason(int $withdrawn, int $held): string
+    {
+        return "Oracle's leave records would withdraw {$withdrawn} of the {$held} held for the same dates, which "
+            .'is too many to be believable, so nothing was changed.';
     }
 
     public static function leaverReason(int $leavers, int $matched): string

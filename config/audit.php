@@ -185,6 +185,11 @@ return [
         // Practice exams: a sitting rewrites its row on every answer. Starting
         // and finishing are logged by hand (ExamSession).
         App\Models\Exams\ExamAttempt::class,
+
+        // Pictures inlined in Oracle's announcements: half a megabyte of PNG a
+        // row, rewritten by the hourly sync whenever Oracle changes one. The
+        // sync logs each run by hand (announcement_sync).
+        App\Models\AnnouncementImage::class,
     ],
 
     /*

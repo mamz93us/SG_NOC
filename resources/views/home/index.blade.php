@@ -42,12 +42,14 @@
              aria-roledescription="carousel">
         <div class="ann-track" id="annTrack">
             @foreach($announcements as $i => $ann)
-                <article class="ann-slide {{ $i === 0 ? 'active' : '' }}"
+                @php $picture = $ann->pictures()->first(); @endphp
+                <article class="ann-slide {{ $i === 0 ? 'active' : '' }} {{ $picture ? 'has-picture' : '' }}"
                          data-id="{{ $ann->id }}"
                          role="group"
                          aria-roledescription="slide"
                          aria-label="{{ $i + 1 }} of {{ $announcements->count() }}"
                          @if($i !== 0) aria-hidden="true" @endif>
+                    <div class="ann-slide-body">
                     <div class="ann-slide-top">
                         <span class="ann-pill {{ $ann->severityBadgeClass() }}">
                             {{ $ann->isUrgent() ? __('home_index.announcements.important') : __('home_index.announcements.announcement') }}
@@ -57,16 +59,24 @@
                         @endif
                     </div>
                     <h3 @class(['ann-title-only' => blank($ann->body)])>{{ $ann->title }}</h3>
-                    {{-- Announcements copied from Oracle carry a title and its
-                         dates only: their text lives in a picture we cannot
-                         fetch. Rendering an empty paragraph leaves a gap that
-                         reads as a broken slide. --}}
+                    {{-- Most of Oracle's notices are a picture with no text of
+                         their own. Rendering an empty paragraph leaves a gap
+                         that reads as a broken slide. --}}
                     @if(filled($ann->body))
                         <p>{{ $ann->excerpt(220) }}</p>
                     @endif
                     @if($ann->link_url)
                         <a class="ann-link" href="{{ $ann->link_url }}" target="_blank" rel="noopener noreferrer">
                             {{ $ann->link_label ?: __('home_index.announcements.read_more') }} &rarr;
+                        </a>
+                    @endif
+                    </div>
+                    {{-- The designed picture Oracle's notice is, small here and
+                         whole on a click. --}}
+                    @if($picture)
+                        @php $pictureUrl = route('home.announcements.image', ['announcement' => $ann->id, 'position' => $picture->position, 'v' => substr($picture->sha1, 0, 12)]); @endphp
+                        <a class="ann-thumb" href="{{ $pictureUrl }}" target="_blank" rel="noopener">
+                            <img src="{{ $pictureUrl }}" alt="{{ $ann->title }}" loading="lazy" decoding="async">
                         </a>
                     @endif
                 </article>

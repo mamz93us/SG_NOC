@@ -17,17 +17,20 @@ use RuntimeException;
  * The API is GET-only by design: it answers any other verb with 403 even with
  * a valid key. There is deliberately no write method here.
  *
- * Two facts about its responses shape the code below, both verified against
- * production on 2026-09-20:
+ * The contract is Oracle's "Samir Employee Portal API" document of 2026-09-27:
+ * seven GET endpoints, a wrong or missing key answers 401, errors are JSON
+ * `{error, message}`, and every date is yyyy-MM-dd. That release removed the
+ * undocumented /attendance endpoint the employee sync used to read, and moved
+ * what only it carried — personId — onto /employees. Checked against
+ * production on 2026-09-29:
  *
  *  - **Null fields are omitted entirely**, not sent as null. So a missing key
- *    means "Oracle holds no value", which is how `description`, `personNameAr`
- *    and `grade` were found to be empty for every row despite being declared
- *    in the OpenAPI schema at /EmployeePortal/v3/api-docs.
+ *    means "Oracle holds no value" — a phone of "-" is Oracle's own
+ *    placeholder for none, and is read as none.
  *  - **There is no pagination.** Every list endpoint returns its whole table:
- *    617 employees, 7,668 vacation records, ~1.5 MB for all five in under two
- *    seconds. So there is no page loop to get wrong, and equally no way to ask
- *    for less.
+ *    617 employees, 614 balances, ~730 leave records. /announcements is the
+ *    heavy one, ~16 MB for 61 rows, because each `description` is the notice's
+ *    HTML with its designed picture inlined, base64 inside base64.
  *
  * Nothing here is cached. Unlike the ticketing catalogue, no page renders live
  * data from this API — the sync commands write to our own tables and every
@@ -38,7 +41,7 @@ class PortalApiClient
     /** Plenty for the four small endpoints, which answer in ~0.2 s. */
     private const TIMEOUT = 30;
 
-    /** /attendance (381 KB) and /vacationDetails (820 KB) answer in ~0.5 s. */
+    /** /announcements (~16 MB) answers in ~2 s; the rest in well under one. */
     private const TIMEOUT_BULK = 60;
 
     public function isConfigured(?PortalSetting $settings = null): bool
@@ -59,13 +62,13 @@ class PortalApiClient
      */
     public function announcements(bool $activeOnly = false, ?PortalSetting $settings = null): array
     {
-        return $this->list('/announcements', $activeOnly ? ['activeOnly' => 'true'] : [], $settings);
+        return $this->list('/announcements', $activeOnly ? ['activeOnly' => 'true'] : [], $settings, self::TIMEOUT_BULK);
     }
 
     /** One announcement, or null when Oracle does not have that id. */
     public function announcement(string $announcementId, ?PortalSetting $settings = null): ?array
     {
-        $body = $this->request('/announcements/'.rawurlencode($announcementId), [], self::TIMEOUT, $settings, allowMissing: true);
+        $body = $this->request('/announcements/'.rawurlencode($announcementId), [], self::TIMEOUT_BULK, $settings, allowMissing: true);
 
         return is_array($body) && $body !== [] ? $body : null;
     }
@@ -73,12 +76,15 @@ class PortalApiClient
     // ─── People ───────────────────────────────────────────────────
 
     /**
-     * The basic employee view.
+     * The employee list: everyone active, plus anyone whose termination date
+     * passed within the last month, who comes back with status "Inactive".
+     * Somebody who left longer ago drops out of the list altogether — which
+     * is one more reason absence from it never means anything here.
      *
-     * Prefer {@see attendance()} for syncing: it is the same 617 people from
-     * the same Oracle view with more columns, `personId` among them — and
-     * `personId` is the only key /employees/{id} and /vacationBalance/{id}
-     * accept, a personNumber there 404s.
+     * Carries `personId`, the only key /employees/{id} and
+     * /vacationBalance/{id} accept; a personNumber there 404s. A
+     * `?personNumber=` lookup matches exactly ("01003" finds nobody) and
+     * returns the person whether active or not.
      *
      * @return list<array<string,mixed>>
      */
@@ -87,30 +93,13 @@ class PortalApiClient
         return $this->list('/employees', $personNumber !== null ? ['personNumber' => $personNumber] : [], $settings);
     }
 
-    /**
-     * The full SAMIR_EMPS_ATTENDANCE view — a superset of /employees.
-     *
-     * Named "attendance" by Oracle but it carries no punches: it is the
-     * employee record with assignment columns. It is undocumented in the PDF
-     * and present in the OpenAPI spec.
-     *
-     * @return list<array<string,mixed>>
-     */
-    public function attendance(?string $personNumber = null, ?string $personId = null, ?PortalSetting $settings = null): array
-    {
-        $query = array_filter([
-            'personNumber' => $personNumber,
-            'personId' => $personId,
-        ], fn ($v) => $v !== null);
-
-        return $this->list('/attendance', $query, $settings, self::TIMEOUT_BULK);
-    }
-
     // ─── Leave ────────────────────────────────────────────────────
 
     /**
-     * Oracle's leave balances. `absences` comes back NEGATIVE — pass it on
-     * unchanged; VacationImporter negates it into a positive `used`.
+     * Oracle's leave balances. `absences` comes back NEGATIVE (539 of 614 rows
+     * on 2026-09-29, never positive) — pass it on unchanged; VacationImporter
+     * negates it into a positive `used`. Oracle's restricted people are left
+     * out of this and of /vacationDetails, by Oracle.
      *
      * @return list<array<string,mixed>>
      */
@@ -120,8 +109,10 @@ class PortalApiClient
     }
 
     /**
-     * Leave and business-trip records, on a rolling window — measured at
-     * ~120 days back plus everything booked ahead.
+     * Leave and business-trip records, on a rolling window. Until 2026-09-27
+     * it reached ~120 days back (7,668 records); since then it starts on the
+     * first of the previous month (~730) — plus everything booked ahead
+     * either way.
      *
      * @return list<array<string,mixed>>
      */

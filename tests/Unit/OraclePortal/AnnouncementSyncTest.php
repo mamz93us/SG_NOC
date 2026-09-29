@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Announcement;
+use App\Models\AnnouncementImage;
 use App\Models\OraclePortal\PortalSetting;
 use App\Services\OraclePortal\AnnouncementSync;
 use App\Services\OraclePortal\PortalApiClient;
@@ -20,7 +21,7 @@ uses(Tests\TestCase::class);
 beforeEach(function () {
     config(['cache.default' => 'array']);
 
-    foreach (['announcements', 'activity_logs', 'branches', 'departments', 'oracle_portal_settings'] as $table) {
+    foreach (['announcement_images', 'announcements', 'activity_logs', 'branches', 'departments', 'oracle_portal_settings'] as $table) {
         Schema::dropIfExists($table);
     }
 
@@ -95,6 +96,9 @@ beforeEach(function () {
         $t->timestamps();
     });
 
+    // The real migration, so its SQLite path is exercised too.
+    (require database_path('migrations/2026_09_29_100001_create_announcement_images_table.php'))->up();
+
     PortalSetting::create([
         'enabled' => true,
         'base_url' => 'https://example.invalid/api',
@@ -149,6 +153,79 @@ it('creates Oracle announcements live, with no body and the image name kept', fu
         ->and($ann->severity)->toBe('info')
         ->and($ann->audience)->toBe('all')
         ->and($ann->external_image_name)->toBe('notice.jpg');
+});
+
+/** Oracle's description: HTML with the picture inlined, base64 inside base64. */
+function oracleDescription(string $pngBytes, string $extraHtml = ''): string
+{
+    return base64_encode('<div style="text-align:center"><img src="data:image/png;base64,'
+        .base64_encode($pngBytes).'" alt="" /></div>'.$extraHtml);
+}
+
+/** A valid PNG signature plus a marker, so two pictures differ. */
+function pngNamed(string $marker): string
+{
+    return "\x89PNG\r\n\x1A\n".$marker;
+}
+
+it('keeps the picture Oracle inlines, and only its text in the body', function () {
+    $counts = announcementSyncWith([oracleRow('1', 'Eid holiday', [
+        'description' => oracleDescription(pngNamed('eid'), '<p>Offices close on&nbsp;Thursday.</p>'),
+    ])])->sync();
+
+    expect($counts['created'])->toBe(1);
+
+    $ann = Announcement::sole();
+    $picture = AnnouncementImage::sole();
+
+    expect($ann->body)->toBe('Offices close on Thursday.')
+        ->and($picture->announcement_id)->toBe($ann->id)
+        ->and($picture->mime)->toBe('image/png')
+        ->and($picture->bytes)->toBe(pngNamed('eid'))
+        ->and($picture->sha1)->toBe(sha1(pngNamed('eid')));
+});
+
+it('leaves an unchanged picture alone and replaces a changed one', function () {
+    announcementSyncWith([oracleRow('1', 'Notice', ['description' => oracleDescription(pngNamed('v1'))])])->sync();
+    $first = AnnouncementImage::sole()->id;
+
+    $again = announcementSyncWith([oracleRow('1', 'Notice', ['description' => oracleDescription(pngNamed('v1'))])])->sync();
+
+    expect($again['unchanged'])->toBe(1)
+        ->and(AnnouncementImage::sole()->id)->toBe($first);
+
+    $changed = announcementSyncWith([oracleRow('1', 'Notice', ['description' => oracleDescription(pngNamed('v2'))])])->sync();
+
+    expect($changed['updated'])->toBe(1)
+        ->and(AnnouncementImage::sole()->bytes)->toBe(pngNamed('v2'));
+});
+
+it('takes the link Oracle writes, but never over one somebody set here', function () {
+    announcementSyncWith([oracleRow('1', 'Register', [
+        'description' => oracleDescription(pngNamed('a'), '<a href="https://forms.example.com/r/1">Register</a>'),
+    ])])->sync();
+
+    $ann = Announcement::sole();
+    expect($ann->link_url)->toBe('https://forms.example.com/r/1');
+
+    $ann->update(['link_url' => 'https://intranet.example.com/eid']);
+
+    announcementSyncWith([oracleRow('1', 'Register', [
+        'description' => oracleDescription(pngNamed('a'), '<a href="https://forms.example.com/r/2">Register</a>'),
+    ])])->sync();
+
+    expect($ann->refresh()->link_url)->toBe('https://intranet.example.com/eid');
+});
+
+it('never serialises a picture\'s bytes', function () {
+    // The home page caches its announcements, relations and all.
+    announcementSyncWith([oracleRow('1', 'Notice', ['description' => oracleDescription(pngNamed('x'))])])->sync();
+
+    $cached = Announcement::query()->withPictures()->sole()->toArray();
+
+    expect($cached['images'])->toHaveCount(1)
+        ->and($cached['images'][0])->not->toHaveKey('bytes')
+        ->and(AnnouncementImage::sole()->toArray())->not->toHaveKey('bytes');
 });
 
 it('never touches an announcement typed here', function () {
