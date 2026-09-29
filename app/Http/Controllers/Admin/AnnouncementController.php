@@ -12,6 +12,7 @@ use App\Services\OraclePortal\AnnouncementSync;
 use App\Support\AnnouncementCache;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -29,6 +30,7 @@ class AnnouncementController extends Controller
     {
         return view('admin.announcements.index', [
             'announcements' => Announcement::with(['branch', 'department'])
+                ->withPictures()
                 ->orderByDesc('pinned')
                 ->orderByDesc('published_at')
                 ->orderByDesc('id')
@@ -56,10 +58,33 @@ class AnnouncementController extends Controller
 
     public function edit(Announcement $announcement): View
     {
+        $announcement->load(['images' => fn ($q) => $q->select(['id', 'announcement_id', 'position', 'sha1', 'size'])]);
+
         return view('admin.announcements.form', [
             'announcement' => $announcement,
             'branches' => Branch::orderBy('name')->get(),
             'departments' => Department::orderBy('name')->get(),
+        ]);
+    }
+
+    /**
+     * A picture from an Oracle notice, for the admin pages. Unlike the home
+     * portal's route it serves expired and unpublished notices too — this is
+     * where someone checks what Oracle sent — and it sits behind the same
+     * manage-announcements gate as the rest of this controller.
+     */
+    public function picture(Announcement $announcement, int $position): Response
+    {
+        $image = $announcement->images()->where('position', $position)->first();
+
+        abort_unless($image !== null, 404);
+
+        return response($image->bytes, 200, [
+            'Content-Type' => $image->mime,
+            'Content-Disposition' => 'inline',
+            'Cache-Control' => 'private, max-age=86400',
+            'ETag' => '"'.$image->sha1.'"',
+            'X-Content-Type-Options' => 'nosniff',
         ]);
     }
 
@@ -137,11 +162,10 @@ class AnnouncementController extends Controller
      */
     private function validated(Request $request, ?Announcement $announcement = null): array
     {
-        // Oracle sends announcements with no text at all — its DESCRIPTION
-        // column is empty for every one of them, and the picture that carries
-        // the message cannot be fetched. Requiring a body on those would stop
-        // an admin fixing a title on the very rows most likely to need it.
-        // A notice somebody writes here still needs one.
+        // Most of Oracle's notices are a picture with no text at all (53 of
+        // 61), kept in announcement_images. Requiring a body on those would
+        // stop an admin fixing a title on the very rows most likely to need
+        // it. A notice somebody writes here still needs one.
         $bodyRule = $announcement?->isFromOracle()
             ? 'nullable|string|max:20000'
             : 'required|string|max:20000';

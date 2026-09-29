@@ -50,12 +50,40 @@
                         @error('title_ar') <span class="invalid-feedback">{{ $message }}</span> @enderror
                     </div>
 
+                    @if($announcement->isFromOracle())
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Picture from Oracle</label>
+                            @forelse($announcement->pictures() as $picture)
+                                @php $pictureUrl = route('admin.announcements.picture', [$announcement, $picture->position, 'v' => substr($picture->sha1, 0, 12)]); @endphp
+                                <a href="{{ $pictureUrl }}" target="_blank" rel="noopener" class="d-block mb-2">
+                                    <img src="{{ $pictureUrl }}" alt="{{ $announcement->title }}" class="img-fluid rounded border"
+                                         style="max-height:420px">
+                                </a>
+                            @empty
+                                <div class="form-text">Oracle sent no picture with this notice.</div>
+                            @endforelse
+                            @if($announcement->pictures()->isNotEmpty())
+                                <div class="form-text">
+                                    Copied from Oracle on every sync and shown on the home portal beside the notice.
+                                    It cannot be changed here.
+                                </div>
+                            @endif
+                        </div>
+                    @endif
+
                     <div class="mb-3">
-                        <label class="form-label fw-semibold">Body <span class="text-danger">*</span></label>
-                        <textarea name="body" rows="8" maxlength="20000" required
+                        <label class="form-label fw-semibold">
+                            Body
+                            @unless($announcement->isFromOracle())<span class="text-danger">*</span>@endunless
+                        </label>
+                        <textarea name="body" rows="8" maxlength="20000" @unless($announcement->isFromOracle()) required @endunless
                                   class="form-control @error('body') is-invalid @enderror">{{ old('body', $announcement->body) }}</textarea>
                         <div class="form-text">
                             Plain text. The slider shows the first ~220 characters, so lead with the point.
+                            @if($announcement->isFromOracle())
+                                Empty when Oracle's notice is the picture alone; anything typed here is kept
+                                and shown with the picture.
+                            @endif
                         </div>
                         @error('body') <span class="invalid-feedback">{{ $message }}</span> @enderror
                     </div>

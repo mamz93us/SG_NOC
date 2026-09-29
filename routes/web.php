@@ -1325,6 +1325,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('announcements', [\App\Http\Controllers\Admin\AnnouncementController::class, 'store'])->name('announcements.store');
         Route::post('announcements/pull', [\App\Http\Controllers\Admin\AnnouncementController::class, 'pull'])->name('announcements.pull');
         Route::get('announcements/{announcement}/edit', [\App\Http\Controllers\Admin\AnnouncementController::class, 'edit'])->name('announcements.edit');
+        Route::get('announcements/{announcement}/pictures/{position}', [\App\Http\Controllers\Admin\AnnouncementController::class, 'picture'])
+            ->whereNumber('position')->name('announcements.picture');
         Route::put('announcements/{announcement}', [\App\Http\Controllers\Admin\AnnouncementController::class, 'update'])->name('announcements.update');
         Route::delete('announcements/{announcement}', [\App\Http\Controllers\Admin\AnnouncementController::class, 'destroy'])->name('announcements.destroy');
     });
