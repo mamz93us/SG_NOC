@@ -185,6 +185,15 @@ class AssistantAgent
             $base .= "\n\n".$recruitment;
         }
 
+        // The archive rules, only for someone offered the archive tools. Without
+        // them the model was handed search_documents with nothing saying the
+        // archive is in scope, and the rule to decline anything that is not
+        // IT, HR or company info read as covering a supplier invoice.
+        $archive = $toolbox->archiveNote();
+        if ($archive !== '') {
+            $base .= "\n\n".$archive;
+        }
+
         $extra = trim((string) $settings->system_prompt_extra);
 
         return $extra !== '' ? $base."\n\n".$extra : $base;
