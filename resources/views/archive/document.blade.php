@@ -9,6 +9,9 @@
         <a href="{{ route('archive.show', $archive->slug) }}" class="arc-muted text-decoration-none small">{{ $archive->displayName() }}</a>
         <span class="arc-muted">/</span>
         <span class="fw-semibold">{{ $document->title() }}</span>
+        <span class="small ms-auto {{ $reading->cssClass() }}" title="{{ $reading->detail() }}">
+            <i class="bi {{ $reading->icon() }}"></i> {{ $reading->label() }}
+        </span>
     </div>
 
     @if ($document->needs_review)
@@ -28,10 +31,36 @@
                     @foreach ($archive->fields as $field)
                         @php($value = $document->values->firstWhere('archive_field_id', $field->id))
                         <dt class="small arc-muted fw-normal">{{ $field->label() }}</dt>
+                        @php($ai = $readings->get($field->id))
                         <dd class="mb-2">
                             {{ $value?->value_text ?: '—' }}
-                            @if ($value && ! $value->isFromArcMate())
+                            @if ($value && $value->source === \App\Models\Archive\ArchiveDocumentValue::SOURCE_AI_APPROVED)
+                                <span class="badge badge-soft ms-1" title="Read by AI and approved by a person">from AI · approved</span>
+                            @elseif ($value && ! $value->isFromArcMate())
                                 <span class="badge badge-soft ms-1">edited here</span>
+                            @endif
+
+                            {{-- What AI read for this field, beside the recorded value and
+                                 never in its place: a pending reading is a machine's guess
+                                 until somebody approves it in the review queue. --}}
+                            @if ($ai && $ai->status === \App\Models\Archive\ArchiveAiProposal::STATUS_PENDING && filled($ai->value))
+                                <div class="small mt-1" style="color:var(--amber)"
+                                     title="Read off the paper by AI. Nobody has checked it yet.">
+                                    <i class="bi bi-stars"></i> AI read: <span class="fw-semibold" dir="auto">{{ $ai->value }}</span>
+                                    <span class="arc-muted">
+                                        @if ($ai->evidence_page) · page {{ $ai->evidence_page }} @endif
+                                        @if ($ai->confidence !== null) · {{ $ai->confidence }}% sure @endif
+                                        · not reviewed
+                                    </span>
+                                </div>
+                            @elseif ($ai && $ai->status === \App\Models\Archive\ArchiveAiProposal::STATUS_NOT_FOUND)
+                                <div class="small arc-muted mt-1">
+                                    <i class="bi bi-stars"></i> AI looked for it and it is not on the paper
+                                </div>
+                            @elseif ($ai && $ai->status === \App\Models\Archive\ArchiveAiProposal::STATUS_REJECTED)
+                                <div class="small arc-muted mt-1" title="A reviewer rejected what AI read here">
+                                    <i class="bi bi-stars"></i> AI read {{ $ai->value }} · rejected
+                                </div>
                             @endif
                         </dd>
                     @endforeach
@@ -147,6 +176,12 @@
                             <div class="small {{ $storage['class'] }}" title="{{ $storage['detail'] }}">
                                 <i class="bi {{ $storage['icon'] }}"></i> {{ $storage['label'] }}
                             </div>
+                            @php($fileState = $fileReading[$file->id] ?? null)
+                            @if ($fileState && $fileState->state !== \App\Services\Archive\Ai\ReadingState::NONE)
+                                <div class="small {{ $fileState->cssClass() }}" title="{{ $fileState->detail() }}">
+                                    <i class="bi {{ $fileState->icon() }}"></i> {{ $fileState->label() }}
+                                </div>
+                            @endif
                         </div>
                         <a href="{{ route('archive.document.download', [$document->id, $file->id]) }}"
                            class="btn btn-sm btn-outline-secondary" title="Download">
@@ -231,6 +266,54 @@
                     <a class="btn btn-sm btn-brand" href="{{ route('archive.document.download', [$document->id, $primary->id]) }}">
                         <i class="bi bi-download"></i> Download it
                     </a>
+                </div>
+            @endif
+
+            @if ($primary)
+                {{-- The text read from the file on screen, page by page, so what a
+                     word search or an answer rests on can be checked against the
+                     scan beside it. Printed escaped: it is a reading of somebody
+                     else's document, never markup. --}}
+                <div class="arc-card p-3 mt-3">
+                    <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+                        <h2 class="h6 mb-0"><i class="bi bi-stars"></i> What AI read</h2>
+                        <span class="arc-muted small text-truncate">{{ $primary->downloadName() }}</span>
+                        @php($primaryState = $fileReading[$primary->id] ?? null)
+                        @if ($primaryState)
+                            <span class="small ms-auto {{ $primaryState->cssClass() }}">
+                                <i class="bi {{ $primaryState->icon() }}"></i> {{ $primaryState->label() }}
+                            </span>
+                        @endif
+                    </div>
+
+                    @forelse ($texts as $page)
+                        <details class="border-top py-2" @if ($loop->first) open @endif>
+                            <summary class="small fw-semibold">
+                                Page {{ $page->page }}
+                                <span class="arc-muted fw-normal">
+                                    · {{ match ($page->source) {
+                                        \App\Models\Archive\ArchiveFileText::SOURCE_AI => 'read by AI',
+                                        \App\Models\Archive\ArchiveFileText::SOURCE_PDF_TEXT => 'from the PDF\'s own text',
+                                        \App\Models\Archive\ArchiveFileText::SOURCE_ARCMATE_OCR => 'ArcMate OCR',
+                                        default => $page->source,
+                                    } }}
+                                    @if ($page->read_at) · {{ $page->read_at->format('Y-m-d H:i') }} @endif
+                                </span>
+                            </summary>
+                            <div class="small mt-2" dir="auto" style="white-space:pre-wrap">{{ trim((string) $page->text) !== '' ? $page->text : '(blank page)' }}</div>
+                        </details>
+                    @empty
+                        <p class="arc-muted small mb-0">
+                            @if ($reading->hasText())
+                                AI has not read this file, but it has read another file of this
+                                document: pick it in the list on the left.
+                            @else
+                                No page of this file has been read yet, so there is no text to show
+                                and a word search cannot find it.
+                                @if ($canAsk) Asking a question about it above reads its pages. @endif
+                            @endif
+                        </p>
+                    @endforelse
                 </div>
             @endif
         </div>
