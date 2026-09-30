@@ -5,6 +5,7 @@ namespace App\Services\Archive;
 use App\Models\Archive\Archive;
 use App\Models\Archive\ArchiveAiProposal;
 use App\Models\Archive\ArchiveField;
+use App\Models\Archive\ArchiveFile;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -69,6 +70,8 @@ class DocumentSearch
             'from' => $this->date($request->query('from')),
             'to' => $this->date($request->query('to')),
             'words' => mb_substr(trim((string) $request->query('q', '')), 0, self::MAX_TERM) ?: null,
+            // Only documents with at least one page AI has read.
+            'ai_read' => $request->boolean('ai_read'),
             // 'date', or a field key. Checked against the archive's own fields
             // before it reaches a query, so a column name cannot arrive in a URL.
             'sort' => mb_substr(trim((string) $request->query('sort', 'date')), 0, 60),
@@ -79,7 +82,7 @@ class DocumentSearch
     /** @param array<string,mixed> $criteria */
     public function hasFilters(array $criteria): bool
     {
-        return $criteria['filters'] !== [] || $criteria['from'] || $criteria['to'] || $criteria['words'];
+        return $criteria['filters'] !== [] || $criteria['from'] || $criteria['to'] || $criteria['words'] || ! empty($criteria['ai_read']);
     }
 
     /**
@@ -123,6 +126,19 @@ class DocumentSearch
 
         if ($criteria['words']) {
             $this->applyWords($query, $criteria['words']);
+        }
+
+        // A list of ids from the files AI has read, rather than EXISTS per
+        // document: a handful of the 515,000 invoices have been read, and a
+        // correlated check walks every one of them in date order to find those.
+        if (! empty($criteria['ai_read'])) {
+            $query->whereIn('archive_documents.id', function ($sub) use ($archive) {
+                $sub->select('archive_files.archive_document_id')
+                    ->from('archive_files')
+                    ->where('archive_files.archive_id', $archive->getKey())
+                    ->whereIn('archive_files.text_status', [ArchiveFile::TEXT_DONE, ArchiveFile::TEXT_PENDING])
+                    ->where('archive_files.pages_read', '>', 0);
+            });
         }
 
         return $this->applySort($query, $archive, $criteria);

@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Archive;
 
 use App\Http\Controllers\Controller;
 use App\Models\Archive\ArchiveAccessLog;
+use App\Models\Archive\ArchiveAiProposal;
 use App\Models\Archive\ArchiveDocument;
 use App\Models\Archive\ArchiveFile;
+use App\Services\Archive\Ai\ReadingState;
 use App\Services\Archive\ArchiveAccess;
 use App\Services\Archive\FileViewer;
 use Illuminate\Http\Request;
@@ -60,11 +62,27 @@ class DocumentController extends Controller
             ?? $document->files->first(fn (ArchiveFile $file) => $file->isViewable())
             ?? $document->files->first();
 
+        // What AI made of it. The page text is the file on screen only — a
+        // forty-page contract's other files would bury the one being looked
+        // at — and the readings are this document's, one per field.
+        $texts = $primary
+            ? $primary->texts()->orderBy('page')->get(['id', 'archive_file_id', 'page', 'text', 'source', 'read_at'])
+            : collect();
+
+        $readings = ArchiveAiProposal::query()
+            ->where('archive_document_id', $document->getKey())
+            ->get()
+            ->keyBy('archive_field_id');
+
         return view('archive.document', [
             'archive' => $document->archive,
             'document' => $document,
             'files' => $document->files,
             'primary' => $primary,
+            'reading' => ReadingState::of($document->files),
+            'fileReading' => $document->files->mapWithKeys(fn (ArchiveFile $file) => [$file->id => ReadingState::of([$file])])->all(),
+            'texts' => $texts,
+            'readings' => $readings,
             'missing' => $primary && ! $this->viewer->exists($primary),
             'converterMissing' => $primary && $this->viewer->needsMissingConverter($primary),
             'canEdit' => $access->canOnArchive($document->archive, 'can_edit'),

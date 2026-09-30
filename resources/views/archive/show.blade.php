@@ -59,6 +59,16 @@
                 <input type="text" class="form-control form-control-sm" name="q" value="{{ $criteria['words'] }}"
                        placeholder="Only where the pages have been read">
             </div>
+
+            <div class="col-sm-6 col-lg-3 d-flex align-items-end">
+                <div class="form-check mb-1">
+                    <input class="form-check-input" type="checkbox" name="ai_read" value="1" id="aiReadOnly"
+                           @checked(! empty($criteria['ai_read']))>
+                    <label class="form-check-label small" for="aiReadOnly">
+                        <i class="bi bi-stars"></i> Only documents AI has read
+                    </label>
+                </div>
+            </div>
         </div>
 
         <div class="d-flex gap-2 mt-3">
@@ -197,6 +207,7 @@
                                     {!! $html !!}
                                 </a>
                             </th>
+                            <th class="arc-muted">AI</th>
                             <th class="text-end">Files</th>
                         </tr>
                     </thead>
@@ -216,6 +227,24 @@
                                     </td>
                                 @endforeach
                                 <td class="arc-muted">{{ $document->captured_at?->format('Y-m-d H:i') ?? '—' }}</td>
+                                <td class="small text-nowrap">
+                                    {{-- Only a document AI has touched gets a flag: on an
+                                         archive where almost nothing is read yet, "not read"
+                                         on every row would drown the few that are. --}}
+                                    @php($state = $reading[$document->id] ?? null)
+                                    @if ($state && $state->state !== \App\Services\Archive\Ai\ReadingState::NONE)
+                                        <span class="{{ $state->cssClass() }}" title="{{ $state->detail() }}">
+                                            <i class="bi {{ $state->icon() }}"></i> {{ $state->label() }}
+                                        </span>
+                                    @endif
+                                    @if (! empty($toReview[$document->id]))
+                                        <div>
+                                            <span class="badge badge-soft" title="Values AI read off the paper that nobody has checked yet">
+                                                <i class="bi bi-stars"></i> {{ $toReview[$document->id] }} to review
+                                            </span>
+                                        </div>
+                                    @endif
+                                </td>
                                 <td class="text-end arc-muted">{{ $document->file_count }}</td>
                             </tr>
                         @endforeach

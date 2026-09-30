@@ -4,6 +4,9 @@ namespace App\Http\Controllers\Archive;
 
 use App\Http\Controllers\Controller;
 use App\Models\Archive\Archive;
+use App\Models\Archive\ArchiveAiProposal;
+use App\Models\Archive\ArchiveFile;
+use App\Services\Archive\Ai\ReadingState;
 use App\Services\Archive\ArchiveAccess;
 use App\Services\Archive\DocumentSearch;
 use Illuminate\Http\Request;
@@ -82,10 +85,34 @@ class ArchiveController extends Controller
             }
         }
 
+        // How far AI has read each listed document, and how many of the values
+        // it read are waiting for a person: two queries for the whole page,
+        // over documents the search already scoped to this person.
+        $ids = $documents->getCollection()->map(fn ($document) => (int) $document->getKey())->all();
+
+        $filesByDocument = ArchiveFile::query()
+            ->whereIn('archive_document_id', $ids)
+            ->get(['archive_document_id', 'text_status', 'pages_read', 'page_count'])
+            ->groupBy('archive_document_id');
+
+        $reading = collect($ids)->mapWithKeys(fn (int $id) => [
+            $id => ReadingState::of($filesByDocument->get($id, collect())),
+        ])->all();
+
+        $toReview = $ids === [] ? [] : ArchiveAiProposal::query()
+            ->whereIn('archive_document_id', $ids)
+            ->pending()
+            ->selectRaw('archive_document_id, COUNT(*) AS readings')
+            ->groupBy('archive_document_id')
+            ->pluck('readings', 'archive_document_id')
+            ->all();
+
         return view('archive.show', [
             'archive' => $archive,
             'fields' => $archive->fields,
             'documents' => $documents,
+            'reading' => $reading,
+            'toReview' => $toReview,
             'criteria' => $criteria,
             'choices' => $choices,
             'hasFilters' => $search->hasFilters($criteria),
