@@ -3,6 +3,7 @@
 namespace App\Services\Archive;
 
 use App\Models\Archive\Archive;
+use App\Models\Archive\ArchiveAiProposal;
 use App\Models\Archive\ArchiveField;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -84,10 +85,18 @@ class DocumentSearch
     /**
      * The query, newest first.
      *
-     * @param  array{filters:array<string,mixed>, from:?string, to:?string, words:?string}  $criteria
+     * `ai_readings` (off unless asked for) lets a field filter match a value AI
+     * read off the paper that nobody has reviewed yet, as well as the document's
+     * recorded value. The assistant asks for it, labelling each such reading as
+     * unreviewed; the search page does not, because a list of results there
+     * reads as the archive's own index.
+     *
+     * @param  array{filters:array<string,mixed>, from:?string, to:?string, words:?string, ai_readings?:bool}  $criteria
      */
     public function run(Archive $archive, array $criteria): Builder
     {
+        $withReadings = (bool) ($criteria['ai_readings'] ?? false);
+
         $query = $this->access->documents()
             ->where('archive_id', $archive->getKey())
             ->with(['values.field']);
@@ -98,7 +107,7 @@ class DocumentSearch
             $field = $fields->get($key);
 
             if ($field) {
-                $this->applyField($query, $field, $value);
+                $this->applyField($query, $field, $value, $withReadings);
             }
         }
 
@@ -166,37 +175,202 @@ class DocumentSearch
      * Dates and numbers compare on their typed columns; everything else is a
      * prefix match on the text, which is what an invoice or PO number search
      * actually is and what the index can serve.
+     *
+     * With AI readings, a document matches on its recorded value OR a pending
+     * reading. That is a UNION of the two index lookups joined in as a
+     * derived table, never `EXISTS … OR EXISTS …`: MySQL cannot turn an OR of
+     * two EXISTS into a semi-join, so it walks every document in the archive
+     * and probes both tables for each — measured on NOC2's 515,000 invoices,
+     * an exact invoice number took 6.5 s that way against 3 ms without the
+     * readings. A field no reading is pending for skips the union entirely.
      */
-    private function applyField(Builder $query, ArchiveField $field, mixed $value): void
+    private function applyField(Builder $query, ArchiveField $field, mixed $value, bool $withReadings = false): void
     {
+        if ($withReadings && $this->hasPendingReadings($field)) {
+            $values = DB::table('archive_document_values')
+                ->select('archive_document_values.archive_document_id')
+                ->where('archive_document_values.archive_field_id', $field->getKey());
+            $this->valueConditions($values, $field, $value);
+
+            $readings = DB::table('archive_ai_proposals')
+                ->select('archive_ai_proposals.archive_document_id')
+                ->where('archive_ai_proposals.archive_field_id', $field->getKey())
+                ->where('archive_ai_proposals.status', ArchiveAiProposal::STATUS_PENDING);
+            $this->readingConditions($readings, $field, $value);
+
+            $alias = 'field_match_'.$field->getKey();
+
+            $query->joinSub($values->union($readings), $alias, "{$alias}.archive_document_id", '=', 'archive_documents.id')
+                // The derived table adds a column; the rows are still documents.
+                ->select('archive_documents.*');
+
+            return;
+        }
+
         $query->whereExists(function ($sub) use ($field, $value) {
             $sub->select(DB::raw(1))
                 ->from('archive_document_values')
                 ->whereColumn('archive_document_values.archive_document_id', 'archive_documents.id')
                 ->where('archive_document_values.archive_field_id', $field->getKey());
 
-            if (is_array($value)) {
-                $column = $field->isNumber() ? 'value_number' : 'value_date';
-
-                if ($value['from'] ?? null) {
-                    $sub->where("archive_document_values.{$column}", '>=', $value['from']);
-                }
-
-                if ($value['to'] ?? null) {
-                    $sub->where("archive_document_values.{$column}", '<=', $value['to']);
-                }
-
-                return;
-            }
-
-            if ($field->isList()) {
-                $sub->where('archive_document_values.value_text', $value);
-
-                return;
-            }
-
-            $sub->where('archive_document_values.value_text', 'like', $this->escapeLike($value).'%');
+            $this->valueConditions($sub, $field, $value);
         });
+    }
+
+    /** $value's condition on archive_document_values, for either shape of query. */
+    private function valueConditions($query, ArchiveField $field, mixed $value): void
+    {
+        if (is_array($value)) {
+            $column = $field->isNumber() ? 'value_number' : 'value_date';
+
+            if ($value['from'] ?? null) {
+                $query->where("archive_document_values.{$column}", '>=', $value['from']);
+            }
+
+            if ($value['to'] ?? null) {
+                $query->where("archive_document_values.{$column}", '<=', $value['to']);
+            }
+
+            return;
+        }
+
+        if ($field->isList()) {
+            $query->where('archive_document_values.value_text', $value);
+
+            return;
+        }
+
+        $query->where('archive_document_values.value_text', 'like', $this->escapeLike($value).'%');
+    }
+
+    /**
+     * $value's condition on a pending AI reading.
+     *
+     * Pending only (the caller's query says so): an approved or edited
+     * reading is already the document's value, a rejected one was judged
+     * wrong, and not_found holds nothing. FieldExtractor writes dates as Y-m-d
+     * and numbers without separators, so a date range compares as text and a
+     * number range as a cast.
+     */
+    private function readingConditions($query, ArchiveField $field, mixed $value): void
+    {
+        if (is_array($value)) {
+            $column = $field->isNumber()
+                ? DB::raw('CAST(archive_ai_proposals.value AS DECIMAL(20,4))')
+                : 'archive_ai_proposals.value';
+
+            if ($value['from'] ?? null) {
+                $query->where($column, '>=', $value['from']);
+            }
+
+            if ($value['to'] ?? null) {
+                $query->where($column, '<=', $value['to']);
+            }
+
+            return;
+        }
+
+        if ($field->isList()) {
+            $query->where('archive_ai_proposals.value', $value);
+
+            return;
+        }
+
+        $query->where('archive_ai_proposals.value', 'like', $this->escapeLike($value).'%');
+    }
+
+    /** Whether AI has read this field anywhere that nobody has reviewed yet. */
+    private function hasPendingReadings(ArchiveField $field): bool
+    {
+        return ArchiveAiProposal::query()
+            ->where('archive_field_id', $field->getKey())
+            ->pending()
+            ->exists();
+    }
+
+    /**
+     * The pages of these documents whose text holds $words, with a snippet
+     * around the first word found: what the assistant quotes when a word
+     * search is what found a document. The same match as applyWords(), so a
+     * document found by its words always has a page to show.
+     *
+     * @param  array<int,int>  $documentIds  already scoped by the caller
+     * @return array<int,list<array{file:string, page:int, snippet:string}>> keyed by document id
+     */
+    public function matchingPages(array $documentIds, string $words, int $perDocument = 3): array
+    {
+        $words = mb_substr(trim($words), 0, self::MAX_TERM);
+
+        if ($documentIds === [] || $words === '') {
+            return [];
+        }
+
+        $query = DB::table('archive_file_texts')
+            ->join('archive_files', 'archive_files.id', '=', 'archive_file_texts.archive_file_id')
+            ->whereIn('archive_files.archive_document_id', $documentIds)
+            ->orderBy('archive_files.archive_document_id')
+            ->orderBy('archive_files.position')
+            ->orderBy('archive_file_texts.page')
+            ->select([
+                'archive_files.archive_document_id as document_id',
+                'archive_files.original_name as file',
+                'archive_file_texts.page',
+                'archive_file_texts.text',
+            ]);
+
+        if ($query->getConnection()->getDriverName() === 'mysql') {
+            $query->whereRaw('MATCH(archive_file_texts.text) AGAINST (? IN BOOLEAN MODE)', [$words]);
+        } else {
+            $query->where('archive_file_texts.text', 'like', '%'.$this->escapeLike($words).'%');
+        }
+
+        $pages = [];
+
+        foreach ($query->limit(count($documentIds) * $perDocument * 4)->get() as $row) {
+            $id = (int) $row->document_id;
+
+            if (count($pages[$id] ?? []) >= $perDocument) {
+                continue;
+            }
+
+            $pages[$id][] = [
+                'file' => (string) $row->file,
+                'page' => (int) $row->page,
+                'snippet' => self::snippet((string) $row->text, $words),
+            ];
+        }
+
+        return $pages;
+    }
+
+    /**
+     * About 300 characters of $text around the first of $words it holds — the
+     * start of the page when none is found as written (a FULLTEXT match can
+     * rest on a stem or a boolean operator).
+     */
+    public static function snippet(string $text, string $words, int $width = 300): string
+    {
+        $text = trim(preg_replace('/\s+/u', ' ', $text) ?? '');
+        $at = null;
+
+        foreach (preg_split('/\s+/u', $words, -1, PREG_SPLIT_NO_EMPTY) ?: [] as $word) {
+            $word = trim($word, '+-~<>()"*');
+
+            if (mb_strlen($word) < 2) {
+                continue;
+            }
+
+            $position = mb_stripos($text, $word);
+
+            if ($position !== false && ($at === null || $position < $at)) {
+                $at = $position;
+            }
+        }
+
+        $start = max(0, ($at ?? 0) - intdiv($width, 3));
+        $snippet = mb_substr($text, $start, $width);
+
+        return ($start > 0 ? '…' : '').$snippet.($start + $width < mb_strlen($text) ? '…' : '');
     }
 
     /**

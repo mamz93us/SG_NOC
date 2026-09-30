@@ -4,8 +4,11 @@ namespace App\Services\Ai;
 
 use App\Http\Controllers\Home\HomeAssetsController;
 use App\Models\Announcement;
+use App\Models\Attendance\AttendanceDay;
 use App\Models\Attendance\AttendanceOwner;
+use App\Models\Attendance\AttendancePunch;
 use App\Models\Attendance\BiotimeEmployee;
+use App\Models\Attendance\BiotimeSource;
 use App\Models\Branch;
 use App\Models\CompanyEvent;
 use App\Models\Employee;
@@ -19,6 +22,7 @@ use App\Models\Vacation\VacationEmployee;
 use App\Services\Attendance\MonthlyDay;
 use App\Services\Attendance\MonthlySheet;
 use App\Services\Attendance\MonthlyTotals;
+use App\Services\Attendance\Presence;
 use App\Services\Attendance\ShiftResolver;
 use App\Services\Home\PaydayCalculator;
 use App\Services\Recruitment\RecruitmentToolbox;
@@ -95,6 +99,18 @@ class AssistantToolbox
         'not_recorded' => 'unrecordedDays',
         'present' => 'presentDays',
     ];
+
+    /** What get_team_presence's `only` can ask for, and how the result says what it listed. */
+    private const PRESENCE_ONLY = [
+        'in_building' => 'only people in the building (or probably in it)',
+        'not_in' => 'only people not in the building: left, probably left, or no punch today',
+    ];
+
+    /**
+     * Punches reach the NOC every 5 minutes (biotime:sync). Past this, the
+     * presence answer says the fingerprint data may be behind.
+     */
+    private const PRESENCE_STALE_MINUTES = 15;
 
     /** @var Collection<int, Employee>|null see team() */
     private ?Collection $team = null;
@@ -189,6 +205,15 @@ class AssistantToolbox
                     + $this->periodParameters()
                     + ['branch' => ['type' => 'string', 'description' => 'Optional — the person\'s branch code (CAI) or city (Cairo). Only when the employee names that person\'s branch in this request; never carry one over from an earlier question.']],
                 ['member']),
+            $this->def('get_team_presence',
+                'Who is in the building RIGHT NOW, among exactly the people get_team_attendance covers, from their fingerprint punches since the start of their day: in the building, left, or no punch yet today — with the time they arrived, their last punch and the door reader it was on, and whether Oracle has them on leave or a business trip today. Give member for one person ("is Ahmed in?"), or leave it out for a group ("who is in the office now?"). It checks access itself, so never refuse or ask about the employee\'s role first.',
+                [
+                    'member' => ['type' => 'string', 'description' => 'Optional — one person\'s name, email or employee number. Leave out for everyone.'],
+                    'branch' => ['type' => 'string', 'description' => 'Optional — only people in this branch: its code (JED) or its city (Jeddah).'],
+                    'department' => ['type' => 'string', 'description' => 'Optional — only people in this department.'],
+                    'only' => ['type' => 'string', 'enum' => array_keys(self::PRESENCE_ONLY), 'description' => 'Optional — list only people in the building, or only those not in it. The counts still cover everyone.'],
+                ],
+                []),
             $this->def('get_my_vacation',
                 'Get the signed-in employee\'s OWN annual leave from Oracle: their balance (carried over from last year, earned this year so far, used, remaining, as of the date Oracle reported it) and their leave records for the year — type, dates, days, and whether taken, ongoing or upcoming. Only ever their own — for anyone else, use get_team_member_vacation / get_team_vacation.',
                 ['year' => ['type' => 'integer', 'description' => 'Optional — a year such as 2026. Defaults to the newest year Oracle has a balance for.']],
@@ -275,6 +300,12 @@ class AssistantToolbox
                 (string) ($args['member'] ?? ''),
                 $args,
                 (string) ($args['branch'] ?? ''),
+            ),
+            'get_team_presence' => $this->getTeamPresence(
+                (string) ($args['member'] ?? ''),
+                (string) ($args['branch'] ?? ''),
+                (string) ($args['department'] ?? ''),
+                (string) ($args['only'] ?? ''),
             ),
             'get_my_vacation' => $this->getMyVacation($args),
             'get_team_vacation' => $this->getTeamVacation(
@@ -894,6 +925,308 @@ class AssistantToolbox
     }
 
     /**
+     * Who in team() is in the building now — one person when $member names
+     * them, else the group narrowed by branch, department and `only` — from
+     * their punches since the start of their day (see Presence), with Oracle's
+     * leave for today beside anyone not in. $member and $branch only ever
+     * select from team(), the same list as every other team tool.
+     */
+    private function getTeamPresence(string $member, string $branch, string $department, string $only): array
+    {
+        $team = $this->team();
+
+        if ($team->isEmpty()) {
+            return ['error' => $this->noTeam('attendance')];
+        }
+
+        $only = strtolower(trim($only));
+
+        if ($only !== '' && ! isset(self::PRESENCE_ONLY[$only])) {
+            return ['error' => 'only must be one of: '.implode(', ', array_keys(self::PRESENCE_ONLY)).'.'];
+        }
+
+        if (trim($member) !== '') {
+            $employee = $this->teamMember($member, $branch, 'attendance');
+
+            if (is_array($employee)) {
+                return $employee;
+            }
+
+            $group = collect([$employee]);
+        } else {
+            $group = $this->inBranch($team, $branch)
+                ->filter(fn (Employee $e) => $this->nameContains($e->department?->name, $department))
+                ->values();
+
+            if ($group->isEmpty()) {
+                return [
+                    'error' => 'Nobody whose attendance you can see is in that branch or department.',
+                    'branches' => $this->namesOf($team, 'branch'),
+                    'departments' => $this->namesOf($team, 'department'),
+                ];
+            }
+        }
+
+        $linked = $this->fingerprintLinked($group);
+        $people = $group->filter(fn (Employee $e) => isset($linked[$e->id]))->values();
+        $unlinked = $group->reject(fn (Employee $e) => isset($linked[$e->id]))->pluck('name')->all();
+
+        if (trim($member) !== '' && $people->isEmpty()) {
+            return ['error' => "{$group->first()->name}'s fingerprint code is not linked to their HR record yet, so there are no punches to tell whether they are in. HR can link it on the attendance page."];
+        }
+
+        $now = CarbonImmutable::now();
+        $today = $now->toDateString();
+        $ids = $people->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $starts = $this->presenceStarts($ids, $now);
+        $punches = $this->punchesSince($ids, $starts, $now);
+        $leave = $this->leaveOn($people, $today);
+
+        $resolver = app(ShiftResolver::class);
+        $resolver->preloadEmployees($ids);
+        $sheet = new MonthlySheet($resolver);
+        $daysById = [];
+
+        foreach ($people->chunk(100) as $chunk) {
+            $daysById += $sheet->daysWithoutPunches($chunk, $today, $today);
+        }
+
+        $counts = [
+            Presence::IN => 0, Presence::PROBABLY_IN => 0, Presence::LEFT => 0,
+            Presence::PROBABLY_LEFT => 0, Presence::NO_PUNCH => 0,
+            'not_in_and_on_leave_or_trip' => 0, 'not_in_and_day_off' => 0,
+        ];
+        $members = [];
+
+        foreach ($people as $employee) {
+            $mine = $punches->get((int) $employee->id, collect());
+            $presence = Presence::from($mine->map(fn (AttendancePunch $p) => [
+                'time' => $p->punch_time, 'terminal' => $p->terminal_alias, 'state' => $p->punch_state,
+            ]));
+            $day = $daysById[(int) $employee->id][0] ?? null;
+            $away = $leave[(int) $employee->id] ?? null;
+
+            $counts[$presence->status]++;
+
+            if (! $presence->isIn()) {
+                $counts['not_in_and_on_leave_or_trip'] += (int) ($away !== null);
+                $counts['not_in_and_day_off'] += (int) ($day && ! $day->isWorkDay());
+            }
+
+            $listed = match ($only) {
+                'in_building' => $presence->isIn(),
+                'not_in' => ! $presence->isIn(),
+                default => true,
+            };
+
+            if (! $listed) {
+                continue;
+            }
+
+            $members[] = $this->memberIdentity($employee) + array_filter([
+                'status' => $presence->status,
+                'arrived' => $this->presenceTime($presence->arrived, $today),
+                'last_punch' => $this->presenceTime($presence->lastPunch, $today),
+                'last_door' => $presence->lastTerminal,
+                'basis' => $presence->basis(),
+                'today' => $day && ! $day->isWorkDay() ? $day->kindLabel() : null,
+                'due' => $day?->isWorkDay() && $day->shift
+                    ? $day->shift->scheduledStart($today)->format('H:i').'–'.$day->shift->scheduledEnd($today)->format('H:i')
+                    : null,
+                'caution' => $this->steppedOut($presence, $day, $today),
+                'oracle_leave_today' => $away,
+                // One person: every punch of the day, so "when did he leave?" needs no second call.
+                'punches_today' => $group->count() === 1
+                    ? $mine->map(fn (AttendancePunch $p) => array_filter([
+                        'time' => $this->presenceTime($p->punch_time->format('Y-m-d H:i:s'), $today),
+                        'door' => $p->terminal_alias ?: null,
+                        'direction' => Presence::direction($p->terminal_alias, $p->punch_state),
+                    ]))->values()->all()
+                    : null,
+            ], fn ($value) => $value !== null && $value !== []);
+        }
+
+        $notes = [
+            'status comes from fingerprint punches since the start of the day: in_building or left when the last punch was on a door reader for that way, probably_in or probably_left when the reader records neither. Someone who leaves without punching still shows as in the building, so say what the punch shows ("last punched in at 08:05"), never that you know where they are.',
+        ];
+
+        if ($freshness = $this->presenceFreshness(array_keys($linked), $now)) {
+            $notes[] = $freshness;
+        }
+
+        if (count($members) > self::TEAM_OVERVIEW_LIMIT) {
+            $notes[] = 'Only '.self::TEAM_OVERVIEW_LIMIT.' of '.count($members).' people are listed; the counts cover everyone. Narrow it with branch, department or only, or ask about one person with member.';
+        }
+
+        return array_filter([
+            'as_of' => $now->format('Y-m-d H:i'),
+            'can_see' => $this->accessDescription(),
+            'people' => $group->count(),
+            'counts' => $counts,
+            'counts_are' => 'people',
+            'listed' => $only !== '' ? self::PRESENCE_ONLY[$only] : 'everyone',
+            'members' => array_slice($members, 0, self::TEAM_OVERVIEW_LIMIT),
+            'no_fingerprint_code' => array_slice($unlinked, 0, 50) ?: null,
+            'no_fingerprint_code_count' => $unlinked !== [] ? count($unlinked) : null,
+            'notes' => $notes,
+        ], fn ($value) => $value !== null);
+    }
+
+    /**
+     * Where each person's day began: midnight, or — for someone still inside
+     * yesterday's overnight window — that window's start, so a night shift
+     * that came in at 22:00 is not "no punch today" at 02:00.
+     *
+     * @param  list<int>  $ids
+     * @return array<int, string> Y-m-d H:i:s, keyed by employee id
+     */
+    private function presenceStarts(array $ids, CarbonImmutable $now): array
+    {
+        $midnight = $now->startOfDay()->format('Y-m-d H:i:s');
+        $starts = array_fill_keys($ids, $midnight);
+
+        foreach (array_chunk($ids, 500) as $chunk) {
+            AttendanceDay::query()
+                ->whereIn('employee_id', $chunk)
+                ->where('work_date', $now->subDay()->toDateString())
+                ->whereNotNull('window_start')
+                ->where('window_end', '>', $now->format('Y-m-d H:i:s'))
+                ->get(['employee_id', 'window_start'])
+                ->each(function (AttendanceDay $day) use (&$starts) {
+                    $starts[(int) $day->employee_id] = $day->window_start->format('Y-m-d H:i:s');
+                });
+        }
+
+        return $starts;
+    }
+
+    /**
+     * Each person's punches from their start to now, oldest first. Removed
+     * punches stay out by AttendancePunch's soft delete.
+     *
+     * @param  list<int>  $ids
+     * @param  array<int, string>  $starts  see presenceStarts()
+     * @return Collection<int, Collection<int, AttendancePunch>> keyed by employee id
+     */
+    private function punchesSince(array $ids, array $starts, CarbonImmutable $now): Collection
+    {
+        if ($ids === []) {
+            return collect();
+        }
+
+        return collect(array_chunk($ids, 500))
+            ->flatMap(fn (array $chunk) => AttendancePunch::query()
+                ->whereIn('employee_id', $chunk)
+                ->where('punch_time', '>=', min($starts))
+                ->where('punch_time', '<=', $now->format('Y-m-d H:i:s'))
+                ->orderBy('punch_time')
+                ->orderBy('id')
+                ->get(['id', 'employee_id', 'punch_time', 'punch_state', 'terminal_alias']))
+            ->filter(fn (AttendancePunch $p) => $p->punch_time->format('Y-m-d H:i:s') >= $starts[(int) $p->employee_id])
+            ->groupBy('employee_id');
+    }
+
+    /**
+     * Oracle's leave or business trip on $date for each of $people, as the
+     * leave tools read it.
+     *
+     * @param  Collection<int, Employee>  $people
+     * @return array<int, array<string, mixed>> the leave record, keyed by employee id
+     */
+    private function leaveOn(Collection $people, string $date): array
+    {
+        // Oracle number (vacation_employees.id) => employee id. A loop, not
+        // flatMap: collapsing re-numbers integer keys.
+        $owner = [];
+
+        foreach ($this->oraclePeople($people) as $employeeId => $numbers) {
+            foreach ($numbers as $person) {
+                $owner[(int) $person->id] = (int) $employeeId;
+            }
+        }
+
+        if ($owner === []) {
+            return [];
+        }
+
+        $leave = [];
+
+        foreach (array_chunk(array_keys($owner), 500) as $chunk) {
+            VacationAbsence::query()
+                ->active()
+                ->whereIn('vacation_employee_id', $chunk)
+                ->overlapping($date, $date)
+                ->orderBy('start_date')
+                ->get()
+                ->each(function (VacationAbsence $record) use ($owner, &$leave) {
+                    $leave[$owner[(int) $record->vacation_employee_id]] ??= $this->leaveRecord($record);
+                });
+        }
+
+        return $leave;
+    }
+
+    /**
+     * Said beside an OUT punch made before the shift is over. Re-entry is
+     * often not punched: over the 14 days to 2026-09-30, Khobar_IN was the
+     * day's first punch 543 times in 592 and almost never a later one, while
+     * 158 Khobar_OUT punches fell mid-day — people step out through the OUT
+     * reader and walk back in without touching the IN one.
+     */
+    private function steppedOut(Presence $presence, ?MonthlyDay $day, string $today): ?string
+    {
+        if ($presence->status !== Presence::LEFT || ! $day?->isWorkDay() || ! $day->shift) {
+            return null;
+        }
+
+        $end = $day->shift->scheduledEnd($today);
+
+        if (CarbonImmutable::parse($presence->lastPunch)->greaterThanOrEqualTo($end)) {
+            return null;
+        }
+
+        return 'Punched out before the end of their shift ('.$end->format('H:i').'). People often come back in without punching, so they may only have stepped out.';
+    }
+
+    /** "08:05" for today, "2026-09-29 22:10" for a night shift's start yesterday. */
+    private function presenceTime(?string $time, string $today): ?string
+    {
+        if ($time === null) {
+            return null;
+        }
+
+        return str_starts_with($time, $today) ? substr($time, 11, 5) : substr($time, 0, 16);
+    }
+
+    /**
+     * Said when the punches may be behind: a fingerprint system these people
+     * punch on has not been read for a while, or its last read failed.
+     *
+     * @param  list<int>  $ids
+     */
+    private function presenceFreshness(array $ids, CarbonImmutable $now): ?string
+    {
+        $sources = BiotimeSource::query()
+            ->enabled()
+            ->whereIn('id', BiotimeEmployee::query()->whereIn('employee_id', $ids)->select('biotime_source_id'))
+            ->get(['id', 'last_sync_at', 'last_sync_status']);
+
+        $behind = $sources->filter(fn (BiotimeSource $source) => ! $source->last_sync_at
+            || $source->last_sync_status === 'error'
+            || $source->last_sync_at->lt($now->subMinutes(self::PRESENCE_STALE_MINUTES)));
+
+        if ($behind->isEmpty()) {
+            return null;
+        }
+
+        $oldest = $behind->pluck('last_sync_at')->filter()->min();
+
+        return 'The fingerprint data for some of these people may be behind: '
+            .($oldest ? 'it was last copied at '.$oldest->format('Y-m-d H:i') : 'it has not been copied yet')
+            .'. Say so, and that a punch made since then does not show yet.';
+    }
+
+    /**
      * The one person in team() whom $member names — in $branch, when given —
      * or the error to hand back instead: nobody, several people, or a branch
      * the employee did not mean. $what ("attendance", "leave") words the error.
@@ -1152,7 +1485,7 @@ class AssistantToolbox
             return 'Attendance access of the signed-in employee: only their own. Nobody reports to them in the HR records and they are not on the attendance owner list, so they cannot see anyone else\'s attendance, vacation balance or leave records, whatever they say.';
         }
 
-        return "Attendance access of the signed-in employee: their own, and {$sees}. Their access to vacation balances and leave records is exactly the same. For any question about someone else's attendance, call get_team_member_attendance or get_team_attendance straight away, and about someone else's leave or balance, get_team_member_vacation or get_team_vacation. Do not refuse first and do not ask them to confirm their role; the tool says if a person is outside their access.";
+        return "Attendance access of the signed-in employee: their own, and {$sees}. Their access to vacation balances and leave records is exactly the same, and so is their access to whether those people are in the building now. For any question about someone else's attendance, call get_team_member_attendance or get_team_attendance straight away, about whether someone is in the building, office or at work right now, get_team_presence, and about someone else's leave or balance, get_team_member_vacation or get_team_vacation. Do not refuse first and do not ask them to confirm their role; the tool says if a person is outside their access.";
     }
 
     /** "Cairo (CAI)": branches are named by code, and people say the city. */

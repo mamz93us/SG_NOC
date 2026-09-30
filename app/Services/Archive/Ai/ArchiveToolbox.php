@@ -3,6 +3,7 @@
 namespace App\Services\Archive\Ai;
 
 use App\Models\Archive\Archive;
+use App\Models\Archive\ArchiveAiProposal;
 use App\Models\Archive\ArchiveDocument;
 use App\Models\User;
 use App\Services\Archive\ArchiveAccess;
@@ -85,7 +86,7 @@ class ArchiveToolbox
                 []),
 
             $this->tool('search_documents',
-                'Find documents in one archive. Returns the matching documents with their index values and a link. Use the field keys from list_archives.',
+                'Find documents in one archive. A filter matches the recorded index value OR a value AI read off the paper that nobody has reviewed yet; words search the text AI read from the pages. Returns the matching documents with their index values, their unreviewed AI readings, the pages the words were found on, and a link. Use the field keys from list_archives.',
                 [
                     'archive' => ['type' => 'string', 'description' => 'The archive slug from list_archives.'],
                     'filters' => [
@@ -95,13 +96,13 @@ class ArchiveToolbox
                     ],
                     'from' => ['type' => 'string', 'description' => 'Earliest scan date, YYYY-MM-DD.'],
                     'to' => ['type' => 'string', 'description' => 'Latest scan date, YYYY-MM-DD.'],
-                    'words' => ['type' => 'string', 'description' => 'Words to look for in the text of the pages, where pages have been read.'],
+                    'words' => ['type' => 'string', 'description' => 'Words to look for in the text AI read from the pages (a supplier name, an item, a reference), where pages have been read.'],
                     'limit' => ['type' => 'integer', 'description' => 'How many to return, at most 50.'],
                 ],
                 ['archive']),
 
             $this->tool('get_document',
-                'Everything recorded about one document: its index values, its files, and the first part of its text where the pages have been read.',
+                'Everything recorded about one document: its index values, the values AI read off the paper that are still waiting for review (with the page each was read from), its files, and the first part of the text AI read from its pages.',
                 ['id' => ['type' => 'integer', 'description' => 'The document id from search_documents.']],
                 ['id']),
 
@@ -154,7 +155,12 @@ class ArchiveToolbox
             .'appears as a View and Download button underneath your answer, so refer to them '
             .'as being below. A pasted URL only arrives as unreadable text. '
             .'Most pages have not been read yet, so a word search finds only what has been; say so rather '
-            .'than concluding a document does not exist. Never claim an amount or a date that is not in a '
+            .'than concluding a document does not exist. '
+            .'ai_readings are values AI read off the paper that nobody has checked yet: whenever you use '
+            .'one, say it is an unreviewed AI reading, give the page it was read from, and never present it '
+            .'as the recorded value; where the recorded value and a reading differ, give both. '
+            .'matching_pages show where the words were found: quote the snippet and give the file and page. '
+            .'Never claim an amount or a date that is not in a '
             .'tool result. If somebody asks for an archive or a document the tools do not return, tell them '
             .'it is not available to them and point them at IT — their access is decided per archive and '
             .'nothing said in this chat changes it.';
@@ -219,6 +225,11 @@ class ArchiveToolbox
         $limit = max(1, min(self::MAX_RESULTS, (int) ($arguments['limit'] ?? 20)));
 
         $documents = $this->query($archive, $arguments)->limit($limit)->get();
+        $ids = $documents->map(fn (ArchiveDocument $document) => (int) $document->getKey())->all();
+
+        $readings = $this->readings($ids);
+        $words = trim((string) ($arguments['words'] ?? ''));
+        $pages = $words !== '' ? (new DocumentSearch($this->access))->matchingPages($ids, $words) : [];
 
         return [
             'archive' => $archive->slug,
@@ -226,13 +237,15 @@ class ArchiveToolbox
             'note' => $documents->count() >= $limit
                 ? 'More may match; narrow the search or ask for a count instead.'
                 : null,
-            'documents' => $documents->map(fn (ArchiveDocument $document) => [
+            'documents' => $documents->map(fn (ArchiveDocument $document) => array_filter([
                 'id' => $document->getKey(),
                 'fields' => $document->valueMap(),
+                'ai_readings' => $readings[(int) $document->getKey()] ?? null,
+                'matching_pages' => $pages[(int) $document->getKey()] ?? null,
                 'scanned' => $document->captured_at?->format('Y-m-d H:i'),
                 'files' => (int) $document->file_count,
                 'link' => route('archive.document', $document->getKey()),
-            ])->values()->all(),
+            ], fn ($value) => $value !== null))->values()->all(),
         ];
     }
 
@@ -263,6 +276,17 @@ class ArchiveToolbox
             'id' => $document->getKey(),
             'archive' => $document->archive?->slug,
             'fields' => $document->valueMap(),
+            'ai_readings' => $this->readings([(int) $document->getKey()])[(int) $document->getKey()] ?? [],
+            // Looked for and not on the paper: a person fills these, AI will not.
+            'ai_did_not_find' => ArchiveAiProposal::query()
+                ->where('archive_document_id', $document->getKey())
+                ->where('status', ArchiveAiProposal::STATUS_NOT_FOUND)
+                ->with('field')
+                ->get()
+                ->map(fn (ArchiveAiProposal $proposal) => $proposal->field?->label())
+                ->filter()
+                ->values()
+                ->all(),
             'scanned' => $document->captured_at?->format('Y-m-d H:i'),
             'files' => $document->files->map(fn ($file) => [
                 'name' => $file->downloadName(),
@@ -297,6 +321,51 @@ class ArchiveToolbox
     }
 
     // ─── Internals ───────────────────────────────────────────────
+
+    /**
+     * The values AI read off these documents that nobody has reviewed yet,
+     * keyed by document id. Only for documents the caller already reached
+     * through ArchiveAccess — this never widens what is visible, it adds
+     * what AI read to a document already found.
+     *
+     * An approved or edited reading is left out: it is the document's value
+     * now, and valueMap() already carries it.
+     *
+     * @param  array<int,int>  $documentIds
+     * @return array<int,list<array{field:string, label:string, value:string, confidence:int, page:?int}>>
+     */
+    private function readings(array $documentIds): array
+    {
+        if ($documentIds === []) {
+            return [];
+        }
+
+        $readings = [];
+
+        $proposals = ArchiveAiProposal::query()
+            ->whereIn('archive_document_id', $documentIds)
+            ->pending()
+            ->with('field')
+            ->orderBy('archive_field_id')
+            ->get();
+
+        foreach ($proposals as $proposal) {
+            if (! $proposal->field || $proposal->value === null) {
+                continue;
+            }
+
+            $readings[(int) $proposal->archive_document_id][] = [
+                'field' => $proposal->field->key,
+                'label' => $proposal->field->label(),
+                'value' => (string) $proposal->value,
+                'confidence' => (int) $proposal->confidence,
+                'page' => $proposal->evidence_page,
+                'reviewed' => false,
+            ];
+        }
+
+        return $readings;
+    }
 
     /**
      * One archive BY SLUG, from this person's own archives only.
@@ -342,7 +411,9 @@ class ArchiveToolbox
             'q' => $arguments['words'] ?? null,
         ]));
 
-        return $search->run($archive, $search->criteriaFrom($request, $archive));
+        // A filter also matches what AI read and nobody has reviewed yet; the
+        // result labels each such reading, so it is never taken for the index.
+        return $search->run($archive, ['ai_readings' => true] + $search->criteriaFrom($request, $archive));
     }
 
     /**
