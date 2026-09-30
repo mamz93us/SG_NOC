@@ -154,6 +154,7 @@ PROMPT,
 
     'errors' => [
         'system_unavailable' => 'The assistant is not available right now. Please try again shortly, or raise a ticket from the IT Service Desk.',
+        'busy' => 'The assistant is busy answering many questions right now. Please wait a minute and ask again.',
         'daily_cap' => 'You have reached today\'s message limit for the assistant. Please try again tomorrow, or raise a ticket directly.',
         'send_failed' => 'That message could not be sent. Please try again.',
         'rate_limited' => 'You are sending messages too quickly. Please wait a moment and try again.',

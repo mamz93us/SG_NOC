@@ -56,6 +56,7 @@ beforeEach(function () {
     Schema::create('employees', function (Blueprint $t) {
         $t->id();
         $t->string('name');
+        $t->string('name_ar')->nullable();
         $t->string('email')->nullable();
         $t->string('oracle_emp_no')->nullable();
         $t->string('job_title')->nullable();
@@ -305,4 +306,41 @@ test('a fingerprint system that has not been read lately is said to be behind', 
     $result = presenceToolbox($org['samir'])->call('get_team_presence', []);
 
     expect(implode(' ', $result['notes']))->toContain('last copied at 2026-09-10 09:30');
+});
+
+// ─── Naming someone ─────────────────────────────────────────────
+
+test('a person is found by mailbox name, a name without its space, and the Arabic name', function () {
+    $org = presenceOrg();
+    $raghad = presencePerson('Raghad', '3007', [
+        'name' => 'Raghad Al Amoudi', 'name_ar' => 'رغد العمودي',
+        'email' => 'raghad.alamoudi@samirgroup.com', 'manager_id' => $org['samir']->id,
+    ]);
+    presencePunch($raghad, '08:12', 'Jeddah_IN');
+
+    // What the model passed on 2026-09-30, after reading lookup_colleague:
+    // neither her email nor a word of her name, so she was "not found".
+    foreach (['raghad.alamoudi', 'alamoudi', 'Raghad Al-Amoudi', 'رغد العمودي', 'رغد العمودى'] as $asked) {
+        $result = presenceToolbox($org['samir'])->call('get_team_presence', ['member' => $asked]);
+
+        expect($result)->not->toHaveKey('error');
+        expect($result['members'][0]['name'])->toBe('Raghad Al Amoudi');
+    }
+});
+
+test('someone asking about themself is pointed at their own tools, not told they are out of reach', function () {
+    $org = presenceOrg();
+
+    foreach (['3000', 'samir', 'samir@samirgroup.com'] as $asked) {
+        $result = presenceToolbox($org['samir'])->call('get_team_member_attendance', ['member' => $asked]);
+
+        expect($result['error'])->toContain('signed-in employee themself')->toContain('get_my_vacation');
+    }
+});
+
+test('a mailbox name still finds nobody outside the team', function () {
+    $org = presenceOrg();
+
+    expect(presenceToolbox($org['samir'])->call('get_team_presence', ['member' => 'karim']))->toHaveKey('error');
+    expect(json_encode(presenceToolbox($org['samir'])->call('get_team_presence', ['member' => 'karim'])))->not->toContain('07:47');
 });

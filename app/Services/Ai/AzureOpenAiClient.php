@@ -4,6 +4,7 @@ namespace App\Services\Ai;
 
 use App\Models\AiSetting;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Sleep;
 use RuntimeException;
 
 /**
@@ -59,12 +60,31 @@ class AzureOpenAiClient
             $payload['response_format'] = $opts['response_format'];
         }
 
-        $response = Http::withHeaders([
-            'api-key' => $settings->azure_api_key,
-            'Content-Type' => 'application/json',
-        ])
-            ->timeout((int) ($opts['timeout'] ?? 60))
-            ->post($url, $payload);
+        // `wait_when_throttled`: seconds a caller will spend waiting out HTTP
+        // 429 before it is thrown. The chat deployment allows 100,000 tokens a
+        // minute (x-ratelimit-limit-tokens, 2026-09-30), and one question from
+        // a long conversation took two calls of 54,000 each, so a person asking
+        // twice in a minute was told the assistant was "not available". Off by
+        // default: the batch jobs keep their own budgets and handle 429 there.
+        $waitBudget = (int) ($opts['wait_when_throttled'] ?? 0);
+
+        while (true) {
+            $response = Http::withHeaders([
+                'api-key' => $settings->azure_api_key,
+                'Content-Type' => 'application/json',
+            ])
+                ->timeout((int) ($opts['timeout'] ?? 60))
+                ->post($url, $payload);
+
+            $wait = $response->status() === 429 ? $this->retryAfter($response) : 0;
+
+            if ($wait < 1 || $wait > $waitBudget) {
+                break;
+            }
+
+            Sleep::for($wait)->seconds();
+            $waitBudget -= $wait;
+        }
 
         if (! $response->successful()) {
             throw new RuntimeException(
@@ -174,6 +194,20 @@ class AzureOpenAiClient
         $reply = trim((string) ($result['message']['content'] ?? ''));
 
         return ['ok' => true, 'detail' => 'Chat deployment responded: "'.mb_substr($reply, 0, 60).'"'];
+    }
+
+    /** Whole seconds Azure asks for before the next try: its Retry-After, else 10. */
+    private function retryAfter(\Illuminate\Http\Client\Response $response): int
+    {
+        $ms = $response->header('retry-after-ms');
+
+        if (is_numeric($ms) && (float) $ms > 0) {
+            return max(1, (int) ceil((float) $ms / 1000));
+        }
+
+        $seconds = $response->header('retry-after');
+
+        return is_numeric($seconds) && (int) $seconds > 0 ? (int) $seconds : 10;
     }
 
     private function url(AiSetting $settings, string $deployment, string $path): string

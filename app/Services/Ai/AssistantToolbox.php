@@ -1253,6 +1253,13 @@ class AssistantToolbox
             ];
         }
 
+        // The asker is never in their own team. Asked for by their own name or
+        // number ("413 vacations" from employee 413, 2026-09-30), they were
+        // told they were outside their own access.
+        if ($matches->isEmpty() && $this->employee && $this->matchPeople(collect([$this->employee]), $member)->isNotEmpty()) {
+            return ['error' => "\"{$member}\" is the signed-in employee themself. Call get_my_attendance for their own attendance, or get_my_vacation for their own leave and balance, and answer from that."];
+        }
+
         if ($matches->isEmpty()) {
             $where = $branch !== '' ? " in \"{$branch}\"" : '';
 
@@ -1368,26 +1375,72 @@ class AssistantToolbox
      */
     private function matchTeamMember(string $query, string $branch = ''): Collection
     {
-        $people = $this->inBranch($this->team(), $branch);
-        $needle = mb_strtolower(trim($query));
+        return $this->matchPeople($this->inBranch($this->team(), $branch), $query);
+    }
 
-        $exact = $people->filter(fn (Employee $e) => in_array($needle, [
-            mb_strtolower(trim((string) $e->email)),
-            mb_strtolower(trim((string) $e->oracle_emp_no)),
-            mb_strtolower(trim((string) $e->name)),
-        ], true));
+    /**
+     * The people in $people that $query names: an exact email, mailbox name,
+     * employee number or full name (English or Arabic) first; failing that,
+     * everyone whose name holds every word.
+     *
+     * The model passes what it has, and on 2026-09-30 that was the mailbox
+     * name — "raghad.alamoudi", read off lookup_colleague — for "Raghad Al
+     * Amoudi": neither her email nor a word of her name, so a whole-company
+     * owner was told three times that she was outside his access. Dots,
+     * underscores and hyphens now split words, a word may match the name with
+     * its spaces taken out ("alamoudi"), and the Arabic name counts, with the
+     * spellings of alef, teh marbuta and yeh made one.
+     *
+     * @param  Collection<int, Employee>  $people
+     * @return Collection<int, Employee>
+     */
+    private function matchPeople(Collection $people, string $query): Collection
+    {
+        $needle = $this->personKey($query);
+
+        if ($needle === '') {
+            return collect();
+        }
+
+        $exact = $people->filter(fn (Employee $e) => in_array($needle, array_filter([
+            $this->personKey((string) $e->email),
+            $this->personKey(strstr((string) $e->email, '@', true) ?: ''),
+            $this->personKey((string) $e->oracle_emp_no),
+            $this->personKey((string) $e->name),
+            $this->personKey((string) $e->name_ar),
+        ]), true));
 
         if ($exact->isNotEmpty()) {
             return $exact->values();
         }
 
-        $words = preg_split('/\s+/u', $needle, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        $words = preg_split('/[\s._\-]+/u', $needle, -1, PREG_SPLIT_NO_EMPTY) ?: [];
 
         return $people
-            ->filter(fn (Employee $e) => $words !== [] && collect($words)->every(
-                fn (string $word) => str_contains(mb_strtolower((string) $e->name), $word)
-            ))
+            ->filter(function (Employee $e) use ($words) {
+                $name = $this->personKey((string) $e->name);
+                $arabic = $this->personKey((string) $e->name_ar);
+                $haystack = implode(' | ', [
+                    $name,
+                    str_replace(' ', '', $name),
+                    $this->personKey(strstr((string) $e->email, '@', true) ?: ''),
+                    $arabic,
+                    str_replace(' ', '', $arabic),
+                ]);
+
+                return $words !== [] && collect($words)->every(fn (string $word) => str_contains($haystack, $word));
+            })
             ->values();
+    }
+
+    /** Lower case, single spaces, and one spelling for the Arabic letters people write several ways. */
+    private function personKey(string $value): string
+    {
+        $value = mb_strtolower(trim($value));
+        $value = preg_replace('/[\x{064B}-\x{0652}\x{0640}]/u', '', $value) ?? $value; // harakat, tatweel
+        $value = strtr($value, ['أ' => 'ا', 'إ' => 'ا', 'آ' => 'ا', 'ة' => 'ه', 'ى' => 'ي']);
+
+        return preg_replace('/\s+/u', ' ', $value) ?? $value;
     }
 
     /**

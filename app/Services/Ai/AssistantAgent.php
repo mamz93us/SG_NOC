@@ -20,6 +20,24 @@ use Illuminate\Support\Collection;
  */
 class AssistantAgent
 {
+    /**
+     * How many of the latest questions are sent back to the model, with
+     * their answers. The whole conversation used to go on every call: one
+     * owner's day-long chat reached 126 messages and 54,000 tokens a call,
+     * against a deployment that allows 100,000 tokens a minute.
+     */
+    private const HISTORY_QUESTIONS = 10;
+
+    /**
+     * A tool result from an EARLIER question longer than this is replaced by
+     * a note saying so. A whole-company attendance list is 69,000 characters;
+     * kept in the history it was paid for again on every later question.
+     */
+    private const EARLIER_TOOL_RESULT_CHARS = 1500;
+
+    /** Seconds a turn waits out Azure's HTTP 429 before telling the employee it is busy. */
+    private const THROTTLE_WAIT_SECONDS = 25;
+
     public function __construct(private AzureOpenAiClient $client) {}
 
     public function respond(AiConversation $conversation, string $userText, AssistantToolbox $toolbox): AiMessage
@@ -37,7 +55,7 @@ class AssistantAgent
 
         $apiMessages = array_merge(
             [['role' => 'system', 'content' => $this->systemPrompt($settings, $toolbox)]],
-            $history->map(fn (AiMessage $m) => $m->toApiMessage())->all(),
+            $this->historyForModel($history),
         );
 
         $toolDefs = $toolbox->definitions();
@@ -125,7 +143,7 @@ class AssistantAgent
         $settings = AiSetting::get();
         $started = microtime(true);
 
-        $result = $this->client->chat($apiMessages, $toolDefs);
+        $result = $this->client->chat($apiMessages, $toolDefs, ['wait_when_throttled' => self::THROTTLE_WAIT_SECONDS]);
 
         $latencyMs = (int) ((microtime(true) - $started) * 1000);
         $message = $result['message'];
@@ -144,6 +162,44 @@ class AssistantAgent
         $conversation->increment('total_tokens', $result['usage']['total_tokens']);
 
         return $row;
+    }
+
+    /**
+     * The conversation as the model is sent it: from the start of the
+     * HISTORY_QUESTIONS-th latest question on, with any long tool result from
+     * before the current question replaced by a note.
+     *
+     * It starts at a user message, so no tool result is ever sent without the
+     * assistant call it answers — Azure refuses that with HTTP 400. And a note
+     * keeps its tool_call_id, so the pairing stays whole.
+     *
+     * @param  Collection<int, AiMessage>  $history  oldest first, the current question last
+     * @return list<array<string, mixed>>
+     */
+    private function historyForModel(Collection $history): array
+    {
+        $history = $history->values();
+        $questions = $history->keys()->filter(fn (int $i) => $history[$i]->role === AiMessage::ROLE_USER)->values();
+
+        if ($questions->isEmpty()) {
+            return $history->map(fn (AiMessage $m) => $m->toApiMessage())->all();
+        }
+
+        $from = $questions[max(0, $questions->count() - self::HISTORY_QUESTIONS)];
+        $current = $questions->last();
+
+        return $history->slice($from)->map(function (AiMessage $m, int $i) use ($current) {
+            $message = $m->toApiMessage();
+
+            if ($m->role === AiMessage::ROLE_TOOL && $i < $current
+                && mb_strlen((string) $m->content) > self::EARLIER_TOOL_RESULT_CHARS) {
+                $message['content'] = json_encode([
+                    'omitted' => 'A result of '.mb_strlen((string) $m->content).' characters from an earlier question, left out to keep the conversation small. If this question needs it, call the tool again.',
+                ]);
+            }
+
+            return $message;
+        })->values()->all();
     }
 
     /** Whether search_knowledge has been called anywhere in this conversation so far. */

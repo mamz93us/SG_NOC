@@ -157,9 +157,17 @@ class AssistantController extends Controller
         try {
             $reply = $this->agent->respond($conversation, $validated['message'], $toolbox);
         } catch (\Throwable $e) {
-            Log::warning('AssistantController: turn failed', ['error' => $e->getMessage()]);
+            // Error, not warning: NOC2 logs from `error` up, and every failed
+            // turn on 2026-09-30 — Azure's HTTP 429 on a 100,000 token/minute
+            // deployment — left nothing in laravel.log to find it by.
+            Log::error('AssistantController: turn failed', [
+                'conversation_id' => $conversation->id,
+                'error' => mb_substr($e->getMessage(), 0, 500),
+            ]);
 
-            return response()->json(['message' => __('home_ai.errors.system_unavailable')], 503);
+            $busy = str_contains($e->getMessage(), 'HTTP 429');
+
+            return response()->json(['message' => __($busy ? 'home_ai.errors.busy' : 'home_ai.errors.system_unavailable')], 503);
         }
 
         // A document link is useless as text: the chat renders replies as plain
