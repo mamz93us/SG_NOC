@@ -81,6 +81,7 @@
                     $employee->oracle_emp_no ? 'Oracle no. '.$employee->oracle_emp_no : 'No Oracle no.',
                     $employee->oracle_employee_category,
                     $employee->oracle_job_category,
+                    $employee->oracle_nationality,
                     $canAttendance ? ($codes ? 'BioTime code '.$codes : 'No BioTime code') : null,
                     $employee->manager ? 'Manager: '.$employee->manager->name : ($employee->oracle_manager_name ? 'Manager in Oracle: '.$employee->oracle_manager_name : null),
                     $employee->hired_date ? 'Hired '.$employee->hired_date->format('d M Y').' ('.$employee->hired_date->diffForHumans($today, ['parts' => 2, 'syntax' => \Carbon\CarbonInterface::DIFF_ABSOLUTE]).')' : null,

@@ -59,6 +59,7 @@ beforeEach(function () {
         $t->string('oracle_assignment_status', 30)->nullable();
         $t->string('oracle_job_category')->nullable();
         $t->string('oracle_profession')->nullable();
+        $t->string('oracle_nationality')->nullable();
         $t->unsignedInteger('branch_id')->nullable();
         $t->unsignedInteger('department_id')->nullable();
         $t->unsignedBigInteger('linked_primary_employee_id')->nullable();
@@ -177,6 +178,28 @@ it('counts everybody by profession', function () {
         WorkforceBreakdown::NONE => 1,
         WorkforceBreakdown::OUTSIDE => 1,
     ]);
+});
+
+it('counts everybody by nationality', function () {
+    breakdownWorkforce();
+    Employee::where('name', 'like', '% Dev')->update(['oracle_nationality' => 'Saudi']);
+    Employee::where('name', 'Fahad Sales')->update(['oracle_nationality' => 'Indian']);
+    // The nationality export lists people Oracle's API list no longer does.
+    Employee::where('name', 'Karim Cairo')->update(['oracle_nationality' => 'Egyptian']);
+
+    expect(breakdownCounts('nationality'))->toBe([
+        'Saudi' => 3,
+        'Egyptian' => 1,
+        'Indian' => 1,
+        // Ghada and Hani: Oracle lists them, the export gave no nationality.
+        WorkforceBreakdown::NONE => 2,
+    ]);
+
+    $html = breakdownPage(['by' => 'nationality', 'pick' => 'Saudi'])->render();
+
+    expect($html)->toContain('No nationality in Oracle')
+        ->toContain('Amal Dev')
+        ->not->toContain('Fahad Sales');
 });
 
 it('adds up to the whole workforce, whatever it is divided by', function () {

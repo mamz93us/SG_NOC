@@ -126,6 +126,19 @@ it('adds the profile fields to employees, and survives a re-run', function () {
     expect(Schema::hasColumns('employees', array_values(App\Services\OraclePortal\EmployeeFacts::PROFILE_FIELDS)))->toBeTrue();
 });
 
+it('adds nationality to employees, and survives a re-run', function () {
+    Schema::create('employees', function (Blueprint $t) {
+        $t->id();
+        $t->string('name');
+        $t->timestamps();
+    });
+
+    runPortalMigration('add_oracle_nationality_to_employees_table');
+    runPortalMigration('add_oracle_nationality_to_employees_table');
+
+    expect(Schema::hasColumn('employees', 'oracle_nationality'))->toBeTrue();
+});
+
 it('adds the profile fields to the staged rows, and survives a re-run', function () {
     foreach (['create_hr_import_batches', 'create_hr_import_rows'] as $name) {
         runPortalMigration($name);
