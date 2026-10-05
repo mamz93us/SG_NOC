@@ -15,11 +15,16 @@
     $percent = fn (float $share) => $share > 0 && $share < 0.001 ? '<0.1%' : rtrim(rtrim(number_format($share * 100, 1), '0'), '.').'%';
 @endphp
 
-<div class="mb-3">
-    <h4 class="mb-0 fw-bold"><i class="bi bi-pie-chart me-2 text-primary"></i>Workforce breakdown</h4>
-    <small class="text-muted">
-        Everybody, counted by the job category, the profession and the nationality Oracle holds for them. Pick a row to see who is in it.
-    </small>
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+    <div>
+        <h4 class="mb-0 fw-bold"><i class="bi bi-pie-chart me-2 text-primary"></i>Workforce breakdown</h4>
+        <small class="text-muted">
+            Everybody, counted by the job category, the profession and the nationality Oracle holds for them. Pick a row to see who is in it.
+        </small>
+    </div>
+    @canroute('admin.people.saudization')
+        <a href="{{ route('admin.people.saudization') }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-flag me-1"></i>Saudization</a>
+    @endcanroute
 </div>
 
 {{-- ── Filters ──────────────────────────────────────────────── --}}

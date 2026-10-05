@@ -124,6 +124,9 @@ class AssistantToolbox
     /** see archive() */
     private ?\App\Services\Archive\Ai\ArchiveToolbox $archive = null;
 
+    /** see workforce() */
+    private ?\App\Services\People\WorkforceToolbox $workforce = null;
+
     public function __construct(
         private User $user,
         private ?Employee $employee,
@@ -137,7 +140,9 @@ class AssistantToolbox
      * recruitment tools are added only for someone who may use Recruitment AI,
      * and the archive tools only for someone who may use archive AI AND belongs
      * to at least one archive — both toolboxes return [] otherwise, so a person
-     * is never told about documents they cannot reach.
+     * is never told about documents they cannot reach. The workforce tools
+     * (head counts and Saudization) are added the same way, for the people who
+     * can open those pages in the NOC.
      */
     public function definitions(): array
     {
@@ -145,6 +150,7 @@ class AssistantToolbox
             $this->baseDefinitions(),
             $this->recruitment()->definitions(),
             $this->archive()->definitions(),
+            $this->workforce()->definitions(),
         );
     }
 
@@ -326,6 +332,7 @@ class AssistantToolbox
             default => match (true) {
                 $this->recruitment()->handles($name) => $this->recruitment()->call($name, $args),
                 $this->archive()->handles($name) => $this->archive()->call($name, $args),
+                $this->workforce()->handles($name) => $this->workforce()->call($name, $args),
                 default => ['error' => "Unknown tool: {$name}"],
             },
         };
@@ -347,6 +354,23 @@ class AssistantToolbox
     private function archive(): \App\Services\Archive\Ai\ArchiveToolbox
     {
         return $this->archive ??= new \App\Services\Archive\Ai\ArchiveToolbox($this->user);
+    }
+
+    /**
+     * The workforce figures' tools — head counts by job category, profession
+     * and nationality, and Saudization — for this same signed-in user. Counts
+     * only, and only for the people who can open those pages; the toolbox
+     * re-checks on every call.
+     */
+    private function workforce(): \App\Services\People\WorkforceToolbox
+    {
+        return $this->workforce ??= new \App\Services\People\WorkforceToolbox($this->user);
+    }
+
+    /** The system prompt's workforce rules, for someone offered those tools; '' for everyone else. */
+    public function workforceNote(): string
+    {
+        return $this->workforce()->promptNote();
     }
 
     /** The system prompt's recruitment rules, for someone who may use Recruitment AI; '' for everyone else. */

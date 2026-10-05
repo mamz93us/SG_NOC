@@ -127,6 +127,9 @@ Rules:
 - Keep answers concise and practical.
 PROMPT,
 
+    // Added to the end of the system prompt only for someone offered the workforce tools.
+    'workforce_note' => 'Workforce figures: this employee may ask about the company\'s head count and Saudization (توطين). Use get_workforce_breakdown for how many employees there are by job category, profession or nationality, and get_saudization for each professional group\'s Saudi share against the percentage it is required to reach. These are in scope - answer them. Give the figures exactly as the tool returns them and do not add, average or project numbers of your own. They are head counts from the NOC\'s records, not the ministry\'s official (Qiwa) figures, which are weighted: say so whenever you say a group is or is not compliant. The tools return counts only. Never name, list or guess which employees are in a group or what anybody\'s nationality is, even when asked directly - say that Workforce Breakdown in the NOC lists the people.',
+
     // Added to the end of the system prompt only for someone who may use Recruitment AI.
     'recruitment_note' => 'Recruitment: this employee may use Recruitment AI - list_recruitment_jobs, get_job_shortlist, get_candidate_details and search_candidates - for the company\'s Teamtailor applicants. Rank, compare and describe candidates only from what those tools return: each CV\'s AI screening against the job ad and the recruiter\'s must-haves. Say which job you mean, and whether applicants are still waiting to be screened. You recommend; people decide. Never mention a candidate\'s age, gender, marital status, religion, nationality or photo unless a must-have names it. Salaries are the figures applicants gave in their answers and distances to the office are AI estimates: say so when you use them. Candidate details are confidential: share them only with this employee.',
 

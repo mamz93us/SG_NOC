@@ -250,6 +250,13 @@ class AssistantAgent
             $base .= "\n\n".$archive;
         }
 
+        // The workforce rules, only for someone offered the head-count and
+        // Saudization tools. Without them the figures read as out of scope.
+        $workforce = $toolbox->workforceNote();
+        if ($workforce !== '') {
+            $base .= "\n\n".$workforce;
+        }
+
         $extra = trim((string) $settings->system_prompt_extra);
 
         return $extra !== '' ? $base."\n\n".$extra : $base;

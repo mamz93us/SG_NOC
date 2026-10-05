@@ -422,7 +422,7 @@
                         <ul class="dropdown-menu dropdown-menu-dark shadow">
                             @canroute('admin.people.index')
                             <li>
-                                <a class="dropdown-item {{ request()->routeIs('admin.people.*') && ! request()->routeIs('admin.people.breakdown') ? 'active' : '' }}"
+                                <a class="dropdown-item {{ request()->routeIs('admin.people.*') && ! request()->routeIs('admin.people.breakdown', 'admin.people.saudization*') ? 'active' : '' }}"
                                    href="{{ route('admin.people.index') }}">
                                     <i class="bi bi-person-badge me-2"></i>Employee Profiles
                                 </a>
@@ -431,6 +431,12 @@
                                 <a class="dropdown-item {{ request()->routeIs('admin.people.breakdown') ? 'active' : '' }}"
                                    href="{{ route('admin.people.breakdown') }}">
                                     <i class="bi bi-pie-chart me-2"></i>Workforce Breakdown
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('admin.people.saudization*') ? 'active' : '' }}"
+                                   href="{{ route('admin.people.saudization') }}">
+                                    <i class="bi bi-flag me-2"></i>Saudization
                                 </a>
                             </li>
                             <li><hr class="dropdown-divider"></li>

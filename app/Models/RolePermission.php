@@ -238,6 +238,9 @@ class RolePermission extends Model
                 'approve-attendance' => 'Approve & Lock Attendance Periods, Send to Oracle',
                 'manage-attendance-owners' => 'Manage Attendance Owners (who can ask the assistant about a branch\'s or the whole company\'s attendance)',
             ],
+            'Workforce' => [
+                'manage-saudization' => 'Edit Saudization Targets (the percentage each professional group must reach, on Attendance ▸ Saudization)',
+            ],
             'Vacations' => [
                 'view-vacations' => 'View Vacations (every employee\'s Oracle leave balance and leave records)',
                 'manage-vacations' => 'Manage Vacations (import the Oracle vacation sheets, link Oracle numbers to employees)',
@@ -315,6 +318,7 @@ class RolePermission extends Model
             'manage-attendance',
             'approve-attendance',
             'manage-attendance-owners',
+            'manage-saudization',
             'view-vacations',
             'manage-vacations',
             'answer-ai-knowledge-gaps',
