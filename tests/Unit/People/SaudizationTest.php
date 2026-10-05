@@ -193,14 +193,34 @@ it('decides a percentage on whole numbers, not on how the share was rounded', fu
         ->and(Saudization::meets(0, 0, 30))->toBeFalse();
 });
 
-it('says how many more Saudis a group needs, counting that each hire also grows the group', function () {
-    // 14 of 52 against 30%: two more make 16 of 54 = 29.6%, three make 17 of 55 = 30.9%.
-    expect(Saudization::shortBy(14, 52, 30))->toBe(3)
-        ->and(Saudization::shortBy(0, 1, 55))->toBe(2)
-        ->and(Saudization::shortBy(46, 88, 60))->toBe(17)
+it('says how many more Saudis a group needs at the size it is today', function () {
+    // Marketing on 2026-10-05: 60% of 88 is 52.8, so 53 Saudis, and it has 46.
+    // The first version said 17 — the hires it would take, each one growing
+    // the group — and HR read it as wrong, which for this question it was.
+    expect(Saudization::required(88, 60))->toBe(53)
+        ->and(Saudization::shortBy(46, 88, 60))->toBe(7)
+        // 30% of 52 is 15.6: sixteen.
+        ->and(Saudization::shortBy(14, 52, 30))->toBe(2)
+        // One pharmacist: 55% of 1 rounds up to that one person.
+        ->and(Saudization::shortBy(0, 1, 55))->toBe(1)
+        ->and(Saudization::shortBy(23, 24, 100))->toBe(1)
+        // Exactly on the line needs nobody, and neither does being over it.
+        ->and(Saudization::required(10, 30))->toBe(3)
+        ->and(Saudization::shortBy(3, 10, 30))->toBe(0)
         ->and(Saudization::shortBy(10, 19, 40))->toBe(0)
-        // Hiring cannot fix a 100% group while one person in it is not Saudi.
-        ->and(Saudization::shortBy(23, 24, 100))->toBeNull();
+        ->and(Saudization::shortBy(0, 0, 60))->toBe(0);
+});
+
+it('is short by nought exactly when it is compliant', function () {
+    // meets() and shortBy() draw the same line, so the badge and the number
+    // under it can never disagree.
+    foreach ([25, 30, 40, 55, 60, 65, 70, 100, 33.33] as $percent) {
+        foreach (range(1, 60) as $people) {
+            foreach (range(0, $people) as $saudis) {
+                expect(Saudization::shortBy($saudis, $people, $percent) === 0)->toBe(Saudization::meets($saudis, $people, $percent));
+            }
+        }
+    }
 });
 
 // ─── The report ───────────────────────────────────────────────────
@@ -219,7 +239,8 @@ it('sets each group\'s Saudi share against the percentage it must reach', functi
         ->and(round($engineers['share'], 1))->toBe(26.9)
         ->and($engineers['required'])->toBe(30.0)
         ->and($engineers['compliant'])->toBeFalse()
-        ->and($engineers['short_by'])->toBe(3);
+        ->and($engineers['saudis_required'])->toBe(16)
+        ->and($engineers['short_by'])->toBe(2);
 
     expect($accounting['compliant'])->toBeTrue()
         ->and($admin['compliant'])->toBeTrue();
@@ -244,7 +265,8 @@ it('checks today\'s staff against the percentages announced for later', function
         ->and($steps['next']['arrived'])->toBeTrue()
         // 60% from October 2027: not yet met, and not yet due.
         ->and($steps['future']['meets'])->toBeFalse()
-        ->and($steps['future']['short_by'])->toBe(4)
+        // 60% of 19 is 11.4: twelve, and there are ten.
+        ->and($steps['future']['short_by'])->toBe(2)
         ->and($steps['future']['arrived'])->toBeFalse();
 
     // The current percentage does not move by itself when the month arrives.
@@ -331,7 +353,8 @@ it('shows the table with each group\'s status, and Edit only to someone who may'
 
     expect($html)->toContain('المهن الهندسية')
         ->toContain('غير ملتزمة بالتوطين')
-        ->toContain('needs 3 more Saudis')
+        ->toContain('needs 2 more Saudis')
+        ->toContain('30% of 52 people is 16 Saudis; the group has 14.')
         ->toContain('from Oct 2026')
         ->toContain('head count')
         ->toContain(route('admin.people.breakdown', ['by' => 'nationality']))
@@ -492,7 +515,7 @@ it('gives the assistant each group\'s standing, in the page\'s own figures', fun
         ->and($answer['groups_not_compliant'])->toBe(1)
         ->and($groups['Engineers'])->toMatchArray([
             'group' => 'المهن الهندسية', 'employees' => 52, 'saudis' => 14, 'saudi_share_percent' => 26.9,
-            'required_percent' => 30.0, 'status' => 'not compliant', 'more_saudis_needed' => 3,
+            'required_percent' => 30.0, 'status' => 'not compliant', 'saudis_required_at_this_size' => 16, 'more_saudis_needed' => 2,
         ])
         ->and($groups['Accountant']['status'])->toBe('compliant')
         ->and($groups['Accountant'])->not->toHaveKey('more_saudis_needed')

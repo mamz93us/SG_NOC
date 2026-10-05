@@ -63,6 +63,7 @@
     This is a <strong>head count</strong>: Saudis ÷ everybody in the group, from the nationality and job category Oracle
     holds for each current employee. The ministry's own figure weighs people (part-time, salary, the husband or son of a
     citizen) and may not apply a rule below a number of staff, so a group can read differently on Qiwa.
+    <em>Needs N more Saudis</em> is at the group's size today: the Saudis its percentage requires of that many people, less the Saudis it has.
     @if ($overall['unknown'] > 0)
         <strong>{{ $overall['unknown'] }} {{ \Illuminate\Support\Str::plural('person', $overall['unknown']) }}</strong> have no nationality on record and are counted as not Saudi.
     @endif
@@ -135,7 +136,7 @@
                                         @if ($step['meets'] === true)
                                             <span class="text-success"><i class="bi bi-check-circle me-1"></i>met today</span>
                                         @elseif ($step['meets'] === false)
-                                            <span class="text-danger"><i class="bi bi-x-circle me-1"></i>{{ $step['short_by'] === null ? 'not met' : 'needs '.$step['short_by'].' more' }}</span>
+                                            <span class="text-danger"><i class="bi bi-x-circle me-1"></i>needs {{ $step['short_by'] }} more</span>
                                         @endif
                                         @if ($step['arrived'])
                                             <span class="badge bg-warning text-dark ms-1" title="This month has arrived. If the percentage now applies, make it the current one on Edit targets.">due</span>
@@ -153,12 +154,8 @@
                             @elseif ($row['compliant'] === false)
                                 <span class="badge bg-danger">Not compliant</span>
                                 <div class="small text-muted" dir="rtl" lang="ar" style="text-align:left">غير ملتزمة بالتوطين</div>
-                                <div class="small text-danger">
-                                    @if ($row['short_by'] === null)
-                                        {{ $row['non_saudis'] }} not Saudi in a 100% group
-                                    @else
-                                        needs {{ $row['short_by'] }} more {{ \Illuminate\Support\Str::plural('Saudi', $row['short_by']) }}
-                                    @endif
+                                <div class="small text-danger" title="{{ rtrim(rtrim(number_format($row['required'], 2), '0'), '.') }}% of {{ $row['people'] }} people is {{ $row['saudis_required'] }} Saudis; the group has {{ $row['saudis'] }}.">
+                                    needs {{ $row['short_by'] }} more {{ \Illuminate\Support\Str::plural('Saudi', $row['short_by']) }}
                                 </div>
                             @else
                                 <span class="badge bg-light text-muted border">Nobody in this group</span>
