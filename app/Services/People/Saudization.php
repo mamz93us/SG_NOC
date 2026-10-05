@@ -1,0 +1,170 @@
+<?php
+
+namespace App\Services\People;
+
+use App\Models\Employee;
+use App\Models\SaudizationGroup;
+use Carbon\CarbonImmutable;
+use Illuminate\Support\Collection;
+
+/**
+ * Where each professional group stands against the Saudization percentage the
+ * ministry requires of it.
+ *
+ * **This is a head count, and the ministry's is not.** A group's share here is
+ * Saudis ÷ everybody in it, from the nationality and job category Oracle holds
+ * for each current employee. The ministry (Qiwa) weighs people — a part-timer
+ * or a low salary counts for less, some non-Saudis count as Saudis (the husband
+ * or son of a citizen), and a rule may not apply below a number of staff in the
+ * profession. On 2026-10-05 the two agreed on 14 of HR's 17 groups; the page
+ * says which kind of count it is rather than pass for the official one.
+ *
+ * Counted: current staff, one row per person (a linked second mailbox is the
+ * same person), in the group's Oracle job category. Somebody whose nationality
+ * is not known is counted in the group and not as a Saudi, and reported — a
+ * missing nationality must not make a group look better than it is.
+ *
+ * Nothing is stored. Every figure is today's, so a hire shows the same day.
+ */
+class Saudization
+{
+    /** How Oracle writes the nationality that counts. Compared without case. */
+    public const SAUDI = 'Saudi';
+
+    /**
+     * @return array{
+     *     groups: Collection<int, array<string,mixed>>,
+     *     outside: Collection<int, array<string,mixed>>,
+     *     overall: array{people:int, saudis:int, unknown:int, share:?float},
+     *     compliant: int, not_compliant: int, empty: int
+     * }
+     */
+    public function report(?CarbonImmutable $today = null): array
+    {
+        $today ??= CarbonImmutable::today();
+        $counts = $this->counts();
+        $groups = SaudizationGroup::query()->orderBy('sort_order')->orderBy('id')->get();
+        $claimed = $groups->pluck('job_category')->filter()->map(fn ($c) => mb_strtolower($c))->flip();
+
+        $rows = $groups->map(fn (SaudizationGroup $group) => $this->row($group, $counts, $today));
+
+        // Everybody a group does not count, named rather than left out: a job
+        // category nobody has given a group, and the people with no category.
+        $outside = $counts
+            ->reject(fn (array $count, string $key) => $key !== '' && $claimed->has($key))
+            ->map(fn (array $count) => $count + ['share' => self::share($count['saudis'], $count['people'])])
+            ->sortBy(fn (array $count) => [$count['job_category'] === null ? 1 : 0, -$count['people']])
+            ->values();
+
+        $people = (int) $counts->sum('people');
+        $saudis = (int) $counts->sum('saudis');
+
+        return [
+            'groups' => $rows,
+            'outside' => $outside,
+            'overall' => [
+                'people' => $people,
+                'saudis' => $saudis,
+                'unknown' => (int) $counts->sum('unknown'),
+                'share' => self::share($saudis, $people),
+            ],
+            // Strictly: a group with nobody in it is null, and null == false.
+            'compliant' => $rows->whereStrict('compliant', true)->count(),
+            'not_compliant' => $rows->whereStrict('compliant', false)->count(),
+            'empty' => $rows->whereStrict('compliant', null)->count(),
+        ];
+    }
+
+    /**
+     * Does this head count meet this percentage?
+     *
+     * Compared as whole numbers, so 9 of 13 against 70% is decided by
+     * 900 < 910 and not by how 69.23 happened to be rounded.
+     */
+    public static function meets(int $saudis, int $people, float $percent): bool
+    {
+        return $people > 0 && $saudis * 100 >= $percent * $people - 1e-9;
+    }
+
+    /**
+     * How many more Saudis the group needs to reach the percentage, if nobody
+     * else joins or leaves. Null where hiring cannot get there: a group that
+     * must be 100% Saudi is short for as long as one person in it is not.
+     */
+    public static function shortBy(int $saudis, int $people, float $percent): ?int
+    {
+        if ($people === 0 || self::meets($saudis, $people, $percent)) {
+            return 0;
+        }
+
+        if ($percent >= 100) {
+            return null;
+        }
+
+        return (int) ceil(($percent * $people - 100 * $saudis) / (100 - $percent) - 1e-9);
+    }
+
+    public static function share(int $saudis, int $people): ?float
+    {
+        return $people > 0 ? $saudis / $people * 100 : null;
+    }
+
+    /** @return array<string,mixed> */
+    private function row(SaudizationGroup $group, Collection $counts, CarbonImmutable $today): array
+    {
+        $count = $group->job_category === null
+            ? null
+            : $counts->get(mb_strtolower($group->job_category));
+        $people = (int) ($count['people'] ?? 0);
+        $saudis = (int) ($count['saudis'] ?? 0);
+        $required = (float) $group->required_percent;
+
+        return [
+            'group' => $group,
+            'people' => $people,
+            'saudis' => $saudis,
+            'unknown' => (int) ($count['unknown'] ?? 0),
+            'share' => self::share($saudis, $people),
+            'required' => $required,
+            // Null, not false, for a group with nobody in it: there is nothing
+            // to be compliant or not about.
+            'compliant' => $people > 0 ? self::meets($saudis, $people, $required) : null,
+            'short_by' => self::shortBy($saudis, $people, $required),
+            'non_saudis' => $people - $saudis,
+            'announced' => array_map(fn (array $step) => $step + [
+                'meets' => $people > 0 ? self::meets($saudis, $people, $step['percent']) : null,
+                'short_by' => self::shortBy($saudis, $people, $step['percent']),
+                // The month has arrived: the "current" percentage may be out of date.
+                'arrived' => $step['from'] !== null && $step['from']->toDateString() <= $today->toDateString(),
+            ], $group->announced()),
+        ];
+    }
+
+    /**
+     * Head counts per Oracle job category, keyed by the category in lower
+     * case ('' for no category).
+     *
+     * @return Collection<string, array{job_category: ?string, people:int, saudis:int, unknown:int}>
+     */
+    private function counts(): Collection
+    {
+        return Employee::query()
+            ->whereNull('linked_primary_employee_id')
+            ->where('status', '!=', 'terminated')
+            // Oracle's list: the nationality and the category both come from it.
+            ->whereNotNull('oracle_assignment_status')
+            ->toBase()
+            ->select('oracle_job_category')
+            ->selectRaw('COUNT(*) as people')
+            ->selectRaw('SUM(CASE WHEN LOWER(oracle_nationality) = ? THEN 1 ELSE 0 END) as saudis', [mb_strtolower(self::SAUDI)])
+            ->selectRaw('SUM(CASE WHEN oracle_nationality IS NULL THEN 1 ELSE 0 END) as unknown')
+            ->groupBy('oracle_job_category')
+            ->get()
+            ->mapWithKeys(fn ($row) => [mb_strtolower((string) $row->oracle_job_category) => [
+                'job_category' => $row->oracle_job_category,
+                'people' => (int) $row->people,
+                'saudis' => (int) $row->saudis,
+                'unknown' => (int) $row->unknown,
+            ]]);
+    }
+}

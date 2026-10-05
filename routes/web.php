@@ -1310,12 +1310,22 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         });
     });
 
+    // ── Saudization targets: its own permission, and its only gate ──
+    // Outside the group below on purpose: nested there it would need
+    // view-attendance or view-vacations as well as manage-saudization.
+    // Registered before people/{employee}, like every other people/… page.
+    Route::middleware('permission:manage-saudization')->group(function () {
+        Route::get('people/saudization/edit', [\App\Http\Controllers\Admin\SaudizationController::class, 'edit'])->name('people.saudization.edit');
+        Route::put('people/saudization', [\App\Http\Controllers\Admin\SaudizationController::class, 'update'])->name('people.saudization.update');
+    });
+
     // ── Employee profiles: attendance and vacations of one person ──
     // Either permission opens the page; each half shows only to its own holders.
     Route::middleware('permission:view-attendance,view-vacations')->group(function () {
         Route::get('people', [\App\Http\Controllers\Admin\EmployeeProfileController::class, 'index'])->name('people.index');
         // Before people/{employee}, which would otherwise read "breakdown" as somebody's id.
         Route::get('people/breakdown', [\App\Http\Controllers\Admin\WorkforceBreakdownController::class, 'index'])->name('people.breakdown');
+        Route::get('people/saudization', [\App\Http\Controllers\Admin\SaudizationController::class, 'index'])->name('people.saudization');
         Route::get('people/{employee}', [\App\Http\Controllers\Admin\EmployeeProfileController::class, 'show'])->name('people.show');
     });
 
