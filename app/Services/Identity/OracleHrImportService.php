@@ -857,10 +857,13 @@ class OracleHrImportService
             // account, and it stays a human's decision.
             $attrs['oracle_assignment_status'] = $row->assignment_status;
         }
-        if ($row->hire_date && ! $employee->hired_date) {
-            // Oracle knows when somebody started, but an existing date here may
-            // have been corrected by hand, so only a blank is filled.
-            $attrs['hired_date'] = $row->hire_date;
+        if ($row->hire_date) {
+            // Oracle's start date is the hire date. This used to fill only a
+            // blank, on the idea that a date here had been corrected by hand —
+            // but the Entra import stamps the day it ran, so what it protected
+            // was a placeholder for 509 people. A sheet row has no hire date
+            // and so changes nothing.
+            $attrs['hired_date'] = substr((string) $row->hire_date, 0, 10);
         }
 
         // Arabic name: NOC-editable, and Oracle wins once it has one — which,

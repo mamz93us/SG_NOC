@@ -505,12 +505,14 @@ it('keeps what it recorded when Oracle stops sending a field to everybody', func
 
 it('leaves an SSS Egypt employee holding the same number alone', function () {
     $cairo = Employee::create(['name' => 'Cairo Person', 'email' => 'cairo@samirgroup.com',
-        'oracle_emp_no' => '1001', 'branch_id' => 3, 'status' => 'active']);
+        'oracle_emp_no' => '1001', 'branch_id' => 3, 'status' => 'active', 'hired_date' => '2021-03-01']);
 
     employeeSyncWith(oracleWorkforce(450, [oracleEmployee('1001', oracleProfile())]))->sync();
 
     $cairo->refresh();
 
+    // Another person's start date would move the day their absences begin.
+    expect($cairo->hired_date->toDateString())->toBe('2021-03-01');
     expect($cairo->oracle_profession)->toBeNull()
         ->and($cairo->oracle_manager_name)->toBeNull()
         ->and($cairo->oracle_contract_end_date)->toBeNull();
@@ -520,7 +522,7 @@ it('gives somebody linked from the review page the same fields', function () {
     // No Oracle number yet, so the sync itself cannot reach them: the row has
     // to carry everything to whoever applies or links it.
     $employee = Employee::create(['name' => 'Someone Else Entirely', 'email' => 'other.address@samirgroup.com',
-        'branch_id' => 1, 'status' => 'active']);
+        'branch_id' => 1, 'status' => 'active', 'hired_date' => '2026-06-07']);
 
     $result = employeeSyncWith(oracleWorkforce(450, [oracleEmployee('1001', oracleProfile())]))->sync();
 
@@ -536,11 +538,137 @@ it('gives somebody linked from the review page the same fields', function () {
     $employee->refresh();
 
     expect($employee->oracle_emp_no)->toBe('1001')
+        ->and($employee->hired_date->toDateString())->toBe('2009-10-17')
         ->and($employee->oracle_job_category)->toBe('AppDev&prog&analysis')
         ->and($employee->oracle_profession)->toBe('محلل نظم المعلومات')
         ->and($employee->oracle_contract_end_date?->toDateString())->toBe('2027-12-02')
         ->and($employee->oracle_manager_name)->toBe('Mona Manager')
         ->and($employee->oracle_supervisor_email)->toBe('sami.supervisor@samirgroup.com');
+});
+
+// ─── The Arabic name ──────────────────────────────────────────────
+
+it('puts Oracle\'s Arabic name on the record without anybody applying a batch', function () {
+    // No API batch was ever applied on NOC2, so the name staged on 617 rows
+    // had reached two employees.
+    $employee = Employee::create(['name' => 'Person 1001', 'email' => 'person1001@samirgroup.com',
+        'oracle_emp_no' => '1001', 'branch_id' => 1, 'status' => 'active']);
+    $typed = Employee::create(['name' => 'Person 1002', 'email' => 'person1002@samirgroup.com',
+        'oracle_emp_no' => '1002', 'branch_id' => 1, 'status' => 'active', 'name_ar' => 'اسم قديم']);
+
+    employeeSyncWith(oracleWorkforce(450, [
+        oracleEmployee('1001', ['personNameAr' => 'تغريد احمد خلاوي']),
+        oracleEmployee('1002', ['personNameAr' => 'اسم من اوراكل']),
+    ]))->sync();
+
+    expect($employee->refresh()->name_ar)->toBe('تغريد احمد خلاوي')
+        // Oracle's wins where it sends one.
+        ->and($typed->refresh()->name_ar)->toBe('اسم من اوراكل');
+});
+
+it('keeps an Arabic name typed here when Oracle sends none', function () {
+    $employee = Employee::create(['name' => 'Person 1001', 'email' => 'person1001@samirgroup.com',
+        'oracle_emp_no' => '1001', 'branch_id' => 1, 'status' => 'active', 'name_ar' => 'اسم مكتوب']);
+
+    // oracleEmployee() carries no personNameAr.
+    employeeSyncWith(oracleWorkforce(450, [oracleEmployee('1001')]))->sync();
+
+    expect($employee->refresh()->name_ar)->toBe('اسم مكتوب');
+});
+
+// ─── Oracle's start date is the hire date ─────────────────────────
+
+it('makes Oracle\'s start date the hire date, over the day the record was imported', function () {
+    // The Entra import stamps the day it ran. 509 of 612 people held that day
+    // as their hire date, and "fill only a blank" left every one of them wrong.
+    $employee = Employee::create(['name' => 'Person 1001', 'email' => 'person1001@samirgroup.com',
+        'oracle_emp_no' => '1001', 'branch_id' => 1, 'status' => 'active', 'hired_date' => '2026-06-07']);
+
+    // Oracle sends 2023-12-02 and means the 3rd: its API is a day early.
+    $result = employeeSyncWith(oracleWorkforce(450, [
+        oracleEmployee('1001', ['startDate' => '2023-12-02']),
+    ]))->sync();
+
+    // Without anybody applying the batch.
+    expect($employee->refresh()->hired_date->toDateString())->toBe('2023-12-03')
+        ->and($result['hire_dates'])->toBe(1);
+});
+
+it('fills a blank hire date and leaves a right one alone', function () {
+    $blank = Employee::create(['name' => 'Person 1001', 'email' => 'person1001@samirgroup.com',
+        'oracle_emp_no' => '1001', 'branch_id' => 1, 'status' => 'active']);
+    $right = Employee::create(['name' => 'Person 1002', 'email' => 'person1002@samirgroup.com',
+        'oracle_emp_no' => '1002', 'branch_id' => 1, 'status' => 'active', 'hired_date' => '2009-10-17']);
+
+    $result = employeeSyncWith(oracleWorkforce(450, [oracleEmployee('1001'), oracleEmployee('1002')]))->sync();
+
+    expect($blank->refresh()->hired_date->toDateString())->toBe('2009-10-17')
+        ->and($right->refresh()->hired_date->toDateString())->toBe('2009-10-17')
+        ->and($result['hire_dates'])->toBe(1);
+});
+
+it('never blanks a hire date Oracle does not send', function () {
+    $employee = Employee::create(['name' => 'Person 1001', 'email' => 'person1001@samirgroup.com',
+        'oracle_emp_no' => '1001', 'branch_id' => 1, 'status' => 'active', 'hired_date' => '2015-04-01']);
+
+    foreach (['-', '', '2020-02-31', null] as $unusable) {
+        employeeSyncWith(oracleWorkforce(450, [oracleEmployee('1001', ['startDate' => $unusable])]))->sync();
+
+        expect($employee->refresh()->hired_date->toDateString())->toBe('2015-04-01');
+    }
+});
+
+it('writes a hire date as Oracle sends it once Oracle has fixed its dates', function () {
+    $employee = Employee::create(['name' => 'Person 1001', 'email' => 'person1001@samirgroup.com',
+        'oracle_emp_no' => '1001', 'branch_id' => 1, 'status' => 'active', 'hired_date' => '2026-06-07']);
+
+    employeeSyncWith(
+        oracleWorkforce(450, [oracleEmployee('1001', ['startDate' => '2023-12-03'])]),
+        oracleLeaveDayEarly(0),
+    )->sync();
+
+    expect($employee->refresh()->hired_date->toDateString())->toBe('2023-12-03');
+});
+
+it('records what Oracle says on a day Oracle has not changed', function () {
+    // It used to wait for the feed to move. Somebody given their Oracle number
+    // on a quiet day went without their facts until it did.
+    $rows = oracleWorkforce(450, [oracleEmployee('1001', oracleProfile())]);
+
+    employeeSyncWith($rows)->sync();
+
+    $employee = Employee::create(['name' => 'Late Link', 'email' => 'late.link@samirgroup.com',
+        'oracle_emp_no' => '1001', 'branch_id' => 1, 'status' => 'active', 'hired_date' => '2026-06-07']);
+
+    $again = employeeSyncWith($rows)->sync();
+
+    $employee->refresh();
+
+    expect($again['unchanged'])->toBeTrue()
+        ->and($again['batch'])->toBeNull()
+        ->and(HrImportBatch::count())->toBe(1)
+        ->and($employee->oracle_assignment_status)->toBe('ACTIVE')
+        ->and($employee->oracle_profession)->not->toBeNull()
+        ->and($employee->hired_date->toDateString())->toBe('2009-10-17');
+});
+
+it('logs nothing on an unchanged day that wrote nothing', function () {
+    $rows = oracleWorkforce();
+
+    employeeSyncWith($rows)->sync();
+    employeeSyncWith($rows)->sync();
+
+    expect(DB::table('activity_logs')->where('action', 'portal_employees_staged')->count())->toBe(1);
+});
+
+it('rolls back a hire date written by a dry run', function () {
+    $employee = Employee::create(['name' => 'Person 1001', 'email' => 'person1001@samirgroup.com',
+        'oracle_emp_no' => '1001', 'branch_id' => 1, 'status' => 'active', 'hired_date' => '2026-06-07']);
+
+    $result = employeeSyncWith(oracleWorkforce(450, [oracleEmployee('1001')]))->sync(dryRun: true);
+
+    expect($result['hire_dates'])->toBe(1)
+        ->and($employee->refresh()->hired_date->toDateString())->toBe('2026-06-07');
 });
 
 it('corrects the day Oracle\'s hire dates are out, and stops correcting once Oracle does', function () {
