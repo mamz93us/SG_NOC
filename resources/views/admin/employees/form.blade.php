@@ -97,6 +97,9 @@
                             <label class="form-label small fw-semibold">Hired Date</label>
                             <input type="date" name="hired_date" class="form-control"
                                    value="{{ old('hired_date', isset($employee) && $employee->hired_date ? $employee->hired_date->format('Y-m-d') : '') }}">
+                            @if(isset($employee) && $employee->oracle_assignment_status)
+                            <div class="form-text">Oracle's start date. A change made here is replaced the next time Oracle is read.</div>
+                            @endif
                         </div>
                         @if($isEdit)
                         <div class="col-md-6">

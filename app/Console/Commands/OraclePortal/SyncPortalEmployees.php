@@ -53,18 +53,16 @@ class SyncPortalEmployees extends Command
             return self::FAILURE;
         }
 
-        if ($result['unchanged']) {
-            $this->info("Oracle is unchanged since the last pull ({$result['rows']} people) — no batch created.");
-
-            return self::SUCCESS;
-        }
-
         $batch = $result['batch'];
 
-        $this->line(sprintf(
-            '%d read: %d matched, %d need a decision, %d with a problem.',
-            $result['rows'], $batch?->matched_count ?? 0, $batch?->unmatched_count ?? 0, $batch?->error_count ?? 0,
-        ));
+        if ($result['unchanged']) {
+            $this->info("Oracle is unchanged since the last pull ({$result['rows']} people) — no batch created.");
+        } else {
+            $this->line(sprintf(
+                '%d read: %d matched, %d need a decision, %d with a problem.',
+                $result['rows'], $batch?->matched_count ?? 0, $batch?->unmatched_count ?? 0, $batch?->error_count ?? 0,
+            ));
+        }
 
         if ($result['leavers_refused']) {
             $this->warn(sprintf(
@@ -79,8 +77,17 @@ class SyncPortalEmployees extends Command
             ));
         }
 
-        $this->comment('Nothing was written to employee records beyond what Oracle says about their '
-            .'assignment. Apply the batch from Admin → Identity → HR Import.');
+        if ($result['hire_dates'] > 0) {
+            $this->line(sprintf(
+                "%d hire %s set from Oracle's start date.",
+                $result['hire_dates'], $result['hire_dates'] === 1 ? 'date' : 'dates',
+            ));
+        }
+
+        $this->comment($result['unchanged']
+            ? 'Only what Oracle says about each person was written to employee records.'
+            : 'Only what Oracle says about each person — Arabic name, hire date, status, category, profession, '
+                .'contract end, manager — was written to employee records. Apply the rest from Admin → Identity → HR Import.');
 
         if ($dryRun) {
             $this->comment('Dry run — everything above was rolled back.');
