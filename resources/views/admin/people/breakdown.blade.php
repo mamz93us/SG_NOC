@@ -18,7 +18,7 @@
 <div class="mb-3">
     <h4 class="mb-0 fw-bold"><i class="bi bi-pie-chart me-2 text-primary"></i>Workforce breakdown</h4>
     <small class="text-muted">
-        Everybody, counted by the job category and the profession Oracle holds for them. Pick a row to see who is in it.
+        Everybody, counted by the job category, the profession and the nationality Oracle holds for them. Pick a row to see who is in it.
     </small>
 </div>
 
@@ -134,6 +134,7 @@
                             <th>Oracle no.</th>
                             <th>Job category</th>
                             <th>Profession</th>
+                            <th>Nationality</th>
                             <th>Branch / Department</th>
                         </tr>
                     </thead>
@@ -156,6 +157,7 @@
                                 <td class="small font-monospace">{{ $employee->oracle_emp_no ?: '—' }}</td>
                                 <td class="small">{{ $employee->oracle_job_category ?: '—' }}</td>
                                 <td class="small text-start" dir="auto">{{ $employee->oracle_profession ?: '—' }}</td>
+                                <td class="small">{{ $employee->oracle_nationality ?: '—' }}</td>
                                 <td class="small">
                                     {{ $employee->branch?->name ?: '—' }}
                                     @if ($employee->department)
@@ -165,7 +167,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="5" class="text-center text-muted py-5">
+                                <td colspan="6" class="text-center text-muted py-5">
                                     <i class="bi bi-person-x fs-3 d-block mb-2"></i>
                                     Nobody matches{{ $search !== '' ? ' "'.$search.'"' : '' }}.
                                 </td>

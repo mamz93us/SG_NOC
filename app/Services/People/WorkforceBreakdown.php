@@ -9,14 +9,15 @@ use Illuminate\Support\Collection;
 
 /**
  * How the workforce divides by something Oracle says about each person: the
- * job category, or the profession on their official papers.
+ * job category, the profession on their official papers, or their nationality.
  *
  * **The parts always add up to the whole.** Somebody with nothing in the field
  * is counted in a named group, never left out, and there are two such groups
  * because they mean different things:
  *
  *  - NONE — Oracle lists the person and has nothing in this field for them
- *    (it sends "-" for 135 job categories and 10 professions).
+ *    (it sends "-" for 135 job categories and 10 professions; a nationality
+ *    is missing for somebody the nationality export does not list).
  *  - OUTSIDE — Oracle's employee list does not cover the person at all. The
  *    Employee Portal serves the Saudi book, so every SSS Egypt employee lands
  *    here, as does anyone not yet matched to their Oracle record. Counting
@@ -37,6 +38,8 @@ class WorkforceBreakdown
     public const DIMENSIONS = [
         'job_category' => ['label' => 'Job category', 'plural' => 'job categories', 'column' => 'oracle_job_category'],
         'profession' => ['label' => 'Profession', 'plural' => 'professions', 'column' => 'oracle_profession'],
+        // From Oracle's nationality export, not its API: see NationalityImporter.
+        'nationality' => ['label' => 'Nationality', 'plural' => 'nationalities', 'column' => 'oracle_nationality'],
     ];
 
     /** Group keys that are not a value. No real value starts with a tilde. */

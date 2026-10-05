@@ -160,6 +160,11 @@
                     <dd class="col-7">{{ ucfirst($employee->gender) }}</dd>
                     @endif
 
+                    @if($employee->oracle_nationality)
+                    <dt class="col-5 text-muted">Nationality</dt>
+                    <dd class="col-7" title="Nationality as Oracle holds it">{{ $employee->oracle_nationality }}</dd>
+                    @endif
+
                     <dt class="col-5 text-muted">Oracle No</dt>
                     <dd class="col-7">
                         @if($employee->oracle_emp_no)

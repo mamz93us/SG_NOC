@@ -55,6 +55,7 @@ class Employee extends Model
         'oracle_manager_email',
         'oracle_supervisor_name',
         'oracle_supervisor_email',
+        'oracle_nationality',
         'mobile_phone',
         'oracle_synced_at',
         'name',
