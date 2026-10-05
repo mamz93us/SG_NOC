@@ -177,8 +177,8 @@ class WorkforceToolbox
                     false => 'not compliant',
                     default => 'nobody in this group',
                 },
+                'saudis_required_at_this_size' => $row['people'] > 0 ? $row['saudis_required'] : null,
                 'more_saudis_needed' => $row['compliant'] === false ? $row['short_by'] : null,
-                'not_saudi_in_a_100_percent_group' => $row['compliant'] === false && $row['short_by'] === null ? $row['non_saudis'] : null,
                 'announced_for_later' => array_map(fn (array $step) => array_filter([
                     'percent' => $step['percent'],
                     'from' => $month($step['from']),
@@ -195,6 +195,7 @@ class WorkforceToolbox
             'note' => 'A head count: Saudis divided by everybody in the group, from the nationality and job category Oracle holds for each current employee. '
                 .'The ministry\'s own figure on Qiwa weighs people (part-time, salary, the husband or son of a citizen) and may not apply a rule below a number of staff, '
                 .'so a group can read differently there. Say so when asked whether the company is officially compliant. '
+                .'more_saudis_needed is at the group\'s size today: the Saudis the percentage requires of that many employees, less the Saudis it has. It is not a number of hires - hiring also grows the group. '
                 .'The required percentages are edited by HR on Saudization in the NOC.',
         ];
     }

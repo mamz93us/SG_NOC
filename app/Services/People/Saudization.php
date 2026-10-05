@@ -87,21 +87,30 @@ class Saudization
     }
 
     /**
-     * How many more Saudis the group needs to reach the percentage, if nobody
-     * else joins or leaves. Null where hiring cannot get there: a group that
-     * must be 100% Saudi is short for as long as one person in it is not.
+     * How many more Saudis the group needs, **at the size it is today**: the
+     * Saudis the percentage requires of this many people, less the Saudis it
+     * has. Marketing at 46 of 88 against 60% needs 53, so it is 7 short.
+     *
+     * Not "how many to hire". The first version answered that — each Saudi
+     * hired also grows the group, so it said 17 for the same figures — and HR
+     * read the number the way everybody does: 60% of 88, less 46. The page
+     * cannot know whether a gap will be closed by hiring or by replacing, and
+     * the requirement at today's head count is the one figure that is true
+     * either way.
      */
-    public static function shortBy(int $saudis, int $people, float $percent): ?int
+    public static function shortBy(int $saudis, int $people, float $percent): int
     {
-        if ($people === 0 || self::meets($saudis, $people, $percent)) {
-            return 0;
-        }
+        return max(0, self::required($people, $percent) - $saudis);
+    }
 
-        if ($percent >= 100) {
-            return null;
-        }
-
-        return (int) ceil(($percent * $people - 100 * $saudis) / (100 - $percent) - 1e-9);
+    /**
+     * The Saudis this percentage requires of this many people, rounded up:
+     * 52.8 people is 53. The same line meets() draws, so a group is short by
+     * nought exactly when it is compliant.
+     */
+    public static function required(int $people, float $percent): int
+    {
+        return (int) ceil($percent * $people / 100 - 1e-9);
     }
 
     public static function share(int $saudis, int $people): ?float
@@ -130,7 +139,7 @@ class Saudization
             // to be compliant or not about.
             'compliant' => $people > 0 ? self::meets($saudis, $people, $required) : null,
             'short_by' => self::shortBy($saudis, $people, $required),
-            'non_saudis' => $people - $saudis,
+            'saudis_required' => self::required($people, $required),
             'announced' => array_map(fn (array $step) => $step + [
                 'meets' => $people > 0 ? self::meets($saudis, $people, $step['percent']) : null,
                 'short_by' => self::shortBy($saudis, $people, $step['percent']),
