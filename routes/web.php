@@ -1314,6 +1314,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     // Either permission opens the page; each half shows only to its own holders.
     Route::middleware('permission:view-attendance,view-vacations')->group(function () {
         Route::get('people', [\App\Http\Controllers\Admin\EmployeeProfileController::class, 'index'])->name('people.index');
+        // Before people/{employee}, which would otherwise read "breakdown" as somebody's id.
+        Route::get('people/breakdown', [\App\Http\Controllers\Admin\WorkforceBreakdownController::class, 'index'])->name('people.breakdown');
         Route::get('people/{employee}', [\App\Http\Controllers\Admin\EmployeeProfileController::class, 'show'])->name('people.show');
     });
 
