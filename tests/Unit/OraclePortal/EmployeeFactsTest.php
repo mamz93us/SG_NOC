@@ -21,9 +21,14 @@ it('maps an employee row onto the staged shape', function () {
         'gender' => 'M',
         'department' => 'Customer Equipment Services Copiers - Riyadh',
         'supervisorName' => 'Wilbert Reyes',
+        'supervisorEmail' => 'Wilbert.Reyes@samirgroup.com',
         'managerName' => 'Alaa Ghonim',
+        'managerEmail' => 'alaa.ghonim@samirgroup.com',
         'locationName' => 'Riyadh',
         'jobName' => 'Technician',
+        'jobCategory' => 'Engineering Technical',
+        'profession' => 'فني',
+        'contractEndDate' => '16-OCT-27',
         'personEmail' => 'jaison.joseph@samirgroup.com',
         'phone' => '0551234567',
         'startDate' => '2009-10-17',
@@ -43,9 +48,62 @@ it('maps an employee row onto the staged shape', function () {
         'person_name_ar' => 'جيسون جوزيف',
         'assignment_status' => 'ACTIVE',
         'supervisor_name' => 'Wilbert Reyes',
+        'supervisor_email' => 'wilbert.reyes@samirgroup.com',
         'manager_name' => 'Alaa Ghonim',
+        'manager_email' => 'alaa.ghonim@samirgroup.com',
+        'job_category' => 'Engineering Technical',
+        'profession' => 'فني',
         'hire_date' => '2009-10-17',
+        'contract_end_date' => '2027-10-16',
     ]);
+});
+
+it('stages every field the profile keeps, so none can be added to one writer and not the other', function () {
+    expect(EmployeeFacts::row(['personNumber' => '1'], 1))->toHaveKeys(array_keys(EmployeeFacts::PROFILE_FIELDS));
+});
+
+it('reads Oracle\'s "-" as nothing said, not as a manager or a category called "-"', function () {
+    // 135 people have no job category, 10 no profession and one no manager or
+    // supervisor. Each arrives as a bare dash.
+    $row = EmployeeFacts::row([
+        'personNumber' => '1',
+        'supervisorName' => '-', 'supervisorEmail' => '-',
+        'managerName' => '-', 'managerEmail' => '-',
+        'jobCategory' => '-', 'profession' => '-', 'contractEndDate' => '-',
+    ], 1);
+
+    expect($row['supervisor_name'])->toBeNull()
+        ->and($row['supervisor_email'])->toBeNull()
+        ->and($row['manager_name'])->toBeNull()
+        ->and($row['manager_email'])->toBeNull()
+        ->and($row['job_category'])->toBeNull()
+        ->and($row['profession'])->toBeNull()
+        ->and($row['contract_end_date'])->toBeNull();
+});
+
+// ─── Contract end dates ───────────────────────────────────────────
+
+it('reads the dd-MON-yy contract end date Oracle sends', function () {
+    expect(EmployeeFacts::contractEndDate('02-DEC-27')?->toDateString())->toBe('2027-12-02');
+    expect(EmployeeFacts::contractEndDate('31-JAN-03')?->toDateString())->toBe('2003-01-31');
+    // Should Oracle switch this field to the format its other dates use.
+    expect(EmployeeFacts::contractEndDate('2027-12-02')?->toDateString())->toBe('2027-12-02');
+});
+
+it('keeps a contract end date that has already passed', function () {
+    // 94 people were Active on 2026-10-05 with one: Oracle does not always
+    // record a renewal. The hire-date rule (nothing past next year) must not
+    // be applied here, and nor is the date judged against today.
+    expect(EmployeeFacts::contractEndDate('19-MAR-19')?->toDateString())->toBe('2019-03-19');
+    expect(EmployeeFacts::contractEndDate('2031-06-30')?->toDateString())->toBe('2031-06-30');
+});
+
+it('refuses a contract end date that is not one', function () {
+    expect(EmployeeFacts::contractEndDate('-'))->toBeNull();
+    expect(EmployeeFacts::contractEndDate(null))->toBeNull();
+    expect(EmployeeFacts::contractEndDate('31-APR-27'))->toBeNull();
+    // Oracle's "end of time".
+    expect(EmployeeFacts::contractEndDate('4712-12-31'))->toBeNull();
 });
 
 it('sends no dept no, because the API has none', function () {

@@ -48,6 +48,13 @@ class Employee extends Model
         'oracle_assignment_status',
         'oracle_person_type',
         'oracle_leaver_ignored_at',
+        'oracle_job_category',
+        'oracle_profession',
+        'oracle_contract_end_date',
+        'oracle_manager_name',
+        'oracle_manager_email',
+        'oracle_supervisor_name',
+        'oracle_supervisor_email',
         'mobile_phone',
         'oracle_synced_at',
         'name',
@@ -84,6 +91,7 @@ class Employee extends Model
         'azure_removed_at' => 'datetime',
         'oracle_synced_at' => 'datetime',
         'oracle_leaver_ignored_at' => 'datetime',
+        'oracle_contract_end_date' => 'date',
         'ucm_server_id' => 'integer',
     ];
 

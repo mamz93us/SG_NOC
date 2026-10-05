@@ -292,8 +292,13 @@ class OracleHrImportService
                     'assignment_status' => $row['assignment_status'] ?? null,
                     'person_type' => $row['person_type'] ?? null,
                     'supervisor_name' => $row['supervisor_name'] ?? null,
+                    'supervisor_email' => $row['supervisor_email'] ?? null,
                     'manager_name' => $row['manager_name'] ?? null,
+                    'manager_email' => $row['manager_email'] ?? null,
+                    'job_category' => $row['job_category'] ?? null,
+                    'profession' => $row['profession'] ?? null,
                     'hire_date' => $row['hire_date'] ?? null,
+                    'contract_end_date' => $row['contract_end_date'] ?? null,
                     'matched_employee_id' => $employee?->id,
                     'match_method' => $method,
                     'resolved_branch_id' => $branchId,
@@ -862,6 +867,18 @@ class OracleHrImportService
         // since 2026-09-27, it does for everybody in the feed.
         if ($row->person_name_ar) {
             $attrs['name_ar'] = $row->person_name_ar;
+        }
+
+        // What Oracle says and the NOC decides nothing on: job category,
+        // profession, contract end, and the manager and supervisor as Oracle
+        // names them — never `manager_id` / `supervisor_id`, which decide whose
+        // attendance somebody may read. EmployeeSync keeps these current for
+        // everyone already holding their Oracle number; this is how somebody
+        // linked or created from the review page gets them the same day.
+        foreach (EmployeeFacts::PROFILE_FIELDS as $staged => $column) {
+            if ($row->{$staged}) {
+                $attrs[$column] = $row->{$staged};
+            }
         }
         if ($row->dept_name) {
             $department = Department::firstOrCreate(['name' => $row->dept_name]);

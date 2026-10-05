@@ -127,6 +127,13 @@
                     </dd>
                     @endif
 
+                    @if($employee->oracle_job_category)
+                    <dt class="col-5 text-muted">Job Category</dt>
+                    <dd class="col-7">
+                        <span class="badge bg-light text-dark border" title="Oracle's job category">{{ $employee->oracle_job_category }}</span>
+                    </dd>
+                    @endif
+
                     @if($employee->oracle_assignment_status === 'INACTIVE' && $employee->status !== 'terminated')
                     <dt class="col-5 text-muted">Oracle says</dt>
                     <dd class="col-7">
@@ -141,6 +148,11 @@
                     @if($employee->job_title)
                     <dt class="col-5 text-muted">Job Title</dt>
                     <dd class="col-7">{{ $employee->job_title }}</dd>
+                    @endif
+
+                    @if($employee->oracle_profession)
+                    <dt class="col-5 text-muted">Profession</dt>
+                    <dd class="col-7" dir="auto" title="Profession as Oracle holds it">{{ $employee->oracle_profession }}</dd>
                     @endif
 
                     @if($employee->gender)
@@ -208,8 +220,32 @@
                         @endif
                     </dd>
 
+                    {{-- As Oracle names them. The two rows above are the NOC's own
+                         reporting line, which Oracle's never overwrites. --}}
+                    @foreach(['Oracle Manager' => ['oracle_manager_name', 'oracle_manager_email'], 'Oracle Supervisor' => ['oracle_supervisor_name', 'oracle_supervisor_email']] as $oracleLabel => [$oracleName, $oracleEmail])
+                    @if($employee->{$oracleName} || $employee->{$oracleEmail})
+                    <dt class="col-5 text-muted">{{ $oracleLabel }}</dt>
+                    <dd class="col-7">
+                        {{ $employee->{$oracleName} ?: '—' }}
+                        @if($employee->{$oracleEmail})
+                        <div class="text-muted text-break" style="font-size:.78rem">{{ $employee->{$oracleEmail} }}</div>
+                        @endif
+                    </dd>
+                    @endif
+                    @endforeach
+
                     <dt class="col-5 text-muted">Hired</dt>
                     <dd class="col-7">{{ $employee->hired_date?->format('d M Y') ?? '—' }}</dd>
+
+                    @if($employee->oracle_contract_end_date)
+                    <dt class="col-5 text-muted">Contract Ends</dt>
+                    <dd class="col-7">
+                        <span title="Contract end date as Oracle holds it">{{ $employee->oracle_contract_end_date->format('d M Y') }}</span>
+                        @if($employee->oracle_contract_end_date->isPast() && $employee->status !== 'terminated')
+                        <span class="badge bg-light text-muted border ms-1" title="Oracle's date has passed. Oracle does not always record a renewal.">passed</span>
+                        @endif
+                    </dd>
+                    @endif
 
                     @if($employee->terminated_date)
                     <dt class="col-5 text-muted">Terminated</dt>

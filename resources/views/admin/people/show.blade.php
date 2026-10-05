@@ -72,14 +72,19 @@
             @if ($employee->name_ar)
                 <div class="text-muted" dir="rtl" lang="ar">{{ $employee->name_ar }}</div>
             @endif
+            @if ($employee->oracle_profession)
+                <div class="small text-muted" dir="auto" title="Profession as Oracle holds it">{{ $employee->oracle_profession }}</div>
+            @endif
             <div class="text-muted">{{ collect([$employee->job_title, $employee->department?->name, $employee->branch?->name])->filter()->implode(' · ') ?: '—' }}</div>
             <div class="small text-muted mt-1">
                 {{ collect([
                     $employee->oracle_emp_no ? 'Oracle no. '.$employee->oracle_emp_no : 'No Oracle no.',
                     $employee->oracle_employee_category,
+                    $employee->oracle_job_category,
                     $canAttendance ? ($codes ? 'BioTime code '.$codes : 'No BioTime code') : null,
-                    $employee->manager ? 'Manager: '.$employee->manager->name : null,
+                    $employee->manager ? 'Manager: '.$employee->manager->name : ($employee->oracle_manager_name ? 'Manager in Oracle: '.$employee->oracle_manager_name : null),
                     $employee->hired_date ? 'Hired '.$employee->hired_date->format('d M Y').' ('.$employee->hired_date->diffForHumans($today, ['parts' => 2, 'syntax' => \Carbon\CarbonInterface::DIFF_ABSOLUTE]).')' : null,
+                    $employee->oracle_contract_end_date ? 'Contract ends '.$employee->oracle_contract_end_date->format('d M Y') : null,
                 ])->filter()->implode(' · ') }}
             </div>
         </div>
