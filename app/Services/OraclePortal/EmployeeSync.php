@@ -39,6 +39,12 @@ use RuntimeException;
  * what the NOC does about it stays a person's decision. Those two columns being
  * separate is the whole safety design.
  *
+ * The same goes for the manager and supervisor. Oracle's are recorded as a name
+ * and an address (`oracle_manager_*`, `oracle_supervisor_*`) and shown on the
+ * profile; `manager_id` and `supervisor_id` are never written here, because
+ * they decide whose attendance and leave somebody may read and where an
+ * approval goes.
+ *
  * Hire dates arrive a day early from Oracle's API; {@see DateOffset} judges
  * that from the leave feed on every run and corrects it, or stops the run.
  *
@@ -129,7 +135,7 @@ class EmployeeSync
         $run = function () use ($rows, $facts, $label, $userId, &$result) {
             $result['batch'] = $this->importer->fromApi($rows, $label, $userId);
 
-            $recorded = Auditor::withoutAuditing(fn () => $this->recordAssignmentStatus($facts));
+            $recorded = Auditor::withoutAuditing(fn () => $this->recordOracleFacts($facts));
 
             $result['inactive'] = $recorded['inactive'];
             $result['recorded'] = $recorded['recorded'];
@@ -163,13 +169,21 @@ class EmployeeSync
     }
 
     /**
-     * Record what Oracle says about each matched person's assignment, and
-     * nothing more.
+     * Record what Oracle says about each matched person — their assignment
+     * status, person id, job category, profession, contract end date, and the
+     * manager and supervisor Oracle names — and nothing more.
      *
-     * These two columns are inert — no observer watches them and no workflow
+     * These columns are inert — no observer watches them and no workflow
      * reads them — which is exactly why they can be written without review. It
      * is what makes "Oracle says INACTIVE" visible on the employee page and on
      * the review list without it being an action.
+     *
+     * The profile fields mirror Oracle, blanks included: a contract end date
+     * Oracle has withdrawn, or a manager it no longer names, must not stay on
+     * the profile as if Oracle still said it. The one exception is a field
+     * nobody in the response carries at all — that is Oracle having dropped
+     * the column, as it did three others on 2026-09-27, and what was last
+     * recorded is worth more than 617 blanks.
      *
      * A person Oracle calls ACTIVE again has any earlier "ignore this leaver"
      * decision cleared, so a real departure later is offered afresh.
@@ -177,7 +191,7 @@ class EmployeeSync
      * @param  list<array<string,mixed>>  $facts
      * @return array{inactive:int, recorded:int, refused:bool}
      */
-    private function recordAssignmentStatus(array $facts): array
+    private function recordOracleFacts(array $facts): array
     {
         $byNumber = [];
 
@@ -197,7 +211,14 @@ class EmployeeSync
             ->whereNull('linked_primary_employee_id')
             ->where(fn ($q) => $q->whereIn('branch_id', $branchIds)->orWhereNull('branch_id'))
             ->get(['id', 'oracle_emp_no', 'branch_id', 'status',
-                'oracle_assignment_status', 'oracle_person_id', 'oracle_leaver_ignored_at']);
+                'oracle_assignment_status', 'oracle_person_id', 'oracle_leaver_ignored_at',
+                ...array_values(EmployeeFacts::PROFILE_FIELDS)]);
+
+        $carried = array_filter(
+            EmployeeFacts::PROFILE_FIELDS,
+            fn (string $fact) => array_filter(array_column($facts, $fact)) !== [],
+            ARRAY_FILTER_USE_KEY,
+        );
 
         $inactive = 0;
         $matched = 0;
@@ -218,7 +239,7 @@ class EmployeeSync
                 $inactive++;
             }
 
-            $pending[] = [$employee, $status, $row['person_id'] ?? null];
+            $pending[] = [$employee, $status, $row];
         }
 
         // Too many at once is far likelier to be a broken response than a
@@ -230,7 +251,8 @@ class EmployeeSync
 
         $recorded = 0;
 
-        foreach ($pending as [$employee, $status, $personId]) {
+        foreach ($pending as [$employee, $status, $row]) {
+            $personId = $row['person_id'] ?? null;
             $attrs = [];
 
             if ($employee->oracle_assignment_status !== $status) {
@@ -245,6 +267,19 @@ class EmployeeSync
             // genuine departure later on.
             if (! EmployeeFacts::isInactive($status) && $employee->oracle_leaver_ignored_at !== null) {
                 $attrs['oracle_leaver_ignored_at'] = null;
+            }
+
+            foreach ($carried as $fact => $column) {
+                $said = $row[$fact] ?? null;
+                $held = $employee->getAttribute($column);
+
+                if ($held instanceof \DateTimeInterface) {
+                    $held = $held->format('Y-m-d');
+                }
+
+                if ($held !== $said) {
+                    $attrs[$column] = $said;
+                }
             }
 
             if ($attrs !== []) {

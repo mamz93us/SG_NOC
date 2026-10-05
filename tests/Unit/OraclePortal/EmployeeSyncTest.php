@@ -129,6 +129,15 @@ beforeEach(function () {
         $t->string('oracle_assignment_status', 30)->nullable();
         $t->string('oracle_person_type', 50)->nullable();
         $t->timestamp('oracle_leaver_ignored_at')->nullable();
+        $t->string('oracle_job_category')->nullable();
+        $t->string('oracle_profession')->nullable();
+        $t->date('oracle_contract_end_date')->nullable();
+        $t->string('oracle_manager_name')->nullable();
+        $t->string('oracle_manager_email')->nullable();
+        $t->string('oracle_supervisor_name')->nullable();
+        $t->string('oracle_supervisor_email')->nullable();
+        $t->unsignedBigInteger('manager_id')->nullable();
+        $t->unsignedBigInteger('supervisor_id')->nullable();
         $t->timestamp('oracle_synced_at')->nullable();
         $t->string('status')->default('active');
         $t->date('hired_date')->nullable();
@@ -137,7 +146,8 @@ beforeEach(function () {
     });
 
     foreach (['create_hr_import_batches', 'create_hr_import_rows', 'add_gender_to_hr_import_rows',
-        'add_mailbox_columns_to_hr_import_rows', 'add_oracle_portal_fields_to_hr_import_tables'] as $name) {
+        'add_mailbox_columns_to_hr_import_rows', 'add_oracle_portal_fields_to_hr_import_tables',
+        'add_oracle_profile_fields_to_hr_import_rows'] as $name) {
         foreach (glob(database_path('migrations/*'.$name.'*.php')) as $migration) {
             (require $migration)->up();
         }
@@ -394,6 +404,143 @@ it('applies the Arabic name, mobile and hire date the API now carries, without b
         ->and($employee->mobile_phone)->toBe('+966551234567')
         ->and($employee->oracle_person_id)->toBe('100000000001001')
         ->and($employee->hired_date?->toDateString())->toBe('2009-10-17');
+});
+
+/** What Oracle says about somebody beyond what the spreadsheet ever held. */
+function oracleProfile(array $overrides = []): array
+{
+    return array_merge([
+        'jobCategory' => 'AppDev&prog&analysis',
+        'profession' => 'محلل نظم المعلومات',
+        'contractEndDate' => '02-DEC-27',
+        'managerName' => 'Mona Manager',
+        'managerEmail' => 'Mona.Manager@samirgroup.com',
+        'supervisorName' => 'Sami Supervisor',
+        'supervisorEmail' => 'sami.supervisor@samirgroup.com',
+    ], $overrides);
+}
+
+it('records what Oracle says on the profile of everyone holding their Oracle number, without review', function () {
+    $employee = Employee::create(['name' => 'Person 1001', 'email' => 'person1001@samirgroup.com',
+        'oracle_emp_no' => '1001', 'branch_id' => 1, 'status' => 'active']);
+
+    employeeSyncWith(oracleWorkforce(450, [oracleEmployee('1001', oracleProfile())]))->sync();
+
+    $employee->refresh();
+
+    expect($employee->oracle_job_category)->toBe('AppDev&prog&analysis')
+        ->and($employee->oracle_profession)->toBe('محلل نظم المعلومات')
+        // As sent: only the start date carries Oracle's day-early error.
+        ->and($employee->oracle_contract_end_date?->toDateString())->toBe('2027-12-02')
+        ->and($employee->oracle_manager_name)->toBe('Mona Manager')
+        ->and($employee->oracle_manager_email)->toBe('mona.manager@samirgroup.com')
+        ->and($employee->oracle_supervisor_name)->toBe('Sami Supervisor')
+        ->and($employee->oracle_supervisor_email)->toBe('sami.supervisor@samirgroup.com');
+});
+
+it('never turns Oracle\'s manager or supervisor into the NOC\'s reporting line', function () {
+    // manager_id and supervisor_id decide whose attendance and leave somebody
+    // may read. Oracle naming a person is not that decision.
+    $mona = Employee::create(['name' => 'Mona Manager', 'email' => 'mona.manager@samirgroup.com',
+        'branch_id' => 1, 'status' => 'active']);
+    $current = Employee::create(['name' => 'Current Manager', 'email' => 'current@samirgroup.com',
+        'branch_id' => 1, 'status' => 'active']);
+    $withManager = Employee::create(['name' => 'Person 1001', 'email' => 'person1001@samirgroup.com',
+        'oracle_emp_no' => '1001', 'branch_id' => 1, 'status' => 'active', 'manager_id' => $current->id]);
+    $without = Employee::create(['name' => 'Person 1002', 'email' => 'person1002@samirgroup.com',
+        'oracle_emp_no' => '1002', 'branch_id' => 1, 'status' => 'active']);
+
+    $result = employeeSyncWith(oracleWorkforce(450, [
+        oracleEmployee('1001', oracleProfile()),
+        oracleEmployee('1002', oracleProfile()),
+    ]))->sync();
+
+    app(OracleHrImportService::class)->applyBatchMatched($result['batch']);
+
+    expect($withManager->refresh()->manager_id)->toBe($current->id)
+        ->and($withManager->supervisor_id)->toBeNull()
+        ->and($without->refresh()->manager_id)->toBeNull()
+        ->and($without->supervisor_id)->toBeNull()
+        ->and($without->oracle_manager_email)->toBe($mona->email);
+});
+
+it('clears what Oracle no longer says, so a withdrawn contract end does not stay on the profile', function () {
+    $employee = Employee::create(['name' => 'Person 1001', 'email' => 'person1001@samirgroup.com',
+        'oracle_emp_no' => '1001', 'branch_id' => 1, 'status' => 'active',
+        'oracle_contract_end_date' => '2026-12-02', 'oracle_job_category' => 'Sales',
+        'oracle_manager_name' => 'Old Manager', 'oracle_manager_email' => 'old.manager@samirgroup.com']);
+
+    // Other people still carry every field, so Oracle has not dropped a column.
+    employeeSyncWith(oracleWorkforce(450, [
+        oracleEmployee('1001', oracleProfile(['contractEndDate' => '-', 'jobCategory' => '-',
+            'managerName' => '-', 'managerEmail' => '-'])),
+        oracleEmployee('1002', oracleProfile()),
+    ]))->sync();
+
+    $employee->refresh();
+
+    expect($employee->oracle_contract_end_date)->toBeNull()
+        ->and($employee->oracle_job_category)->toBeNull()
+        ->and($employee->oracle_manager_name)->toBeNull()
+        ->and($employee->oracle_manager_email)->toBeNull()
+        // Still said, still held.
+        ->and($employee->oracle_profession)->toBe('محلل نظم المعلومات');
+});
+
+it('keeps what it recorded when Oracle stops sending a field to everybody', function () {
+    // Oracle dropped three columns from this list on 2026-09-27. A field no
+    // row carries is a column that went away, not 617 people losing a manager.
+    $employee = Employee::create(['name' => 'Person 1001', 'email' => 'person1001@samirgroup.com',
+        'oracle_emp_no' => '1001', 'branch_id' => 1, 'status' => 'active',
+        'oracle_profession' => 'محلل نظم المعلومات', 'oracle_contract_end_date' => '2027-12-02']);
+
+    // oracleWorkforce() rows carry none of the profile fields.
+    employeeSyncWith(oracleWorkforce(450, [oracleEmployee('1001')]))->sync();
+
+    $employee->refresh();
+
+    expect($employee->oracle_profession)->toBe('محلل نظم المعلومات')
+        ->and($employee->oracle_contract_end_date?->toDateString())->toBe('2027-12-02');
+});
+
+it('leaves an SSS Egypt employee holding the same number alone', function () {
+    $cairo = Employee::create(['name' => 'Cairo Person', 'email' => 'cairo@samirgroup.com',
+        'oracle_emp_no' => '1001', 'branch_id' => 3, 'status' => 'active']);
+
+    employeeSyncWith(oracleWorkforce(450, [oracleEmployee('1001', oracleProfile())]))->sync();
+
+    $cairo->refresh();
+
+    expect($cairo->oracle_profession)->toBeNull()
+        ->and($cairo->oracle_manager_name)->toBeNull()
+        ->and($cairo->oracle_contract_end_date)->toBeNull();
+});
+
+it('gives somebody linked from the review page the same fields', function () {
+    // No Oracle number yet, so the sync itself cannot reach them: the row has
+    // to carry everything to whoever applies or links it.
+    $employee = Employee::create(['name' => 'Someone Else Entirely', 'email' => 'other.address@samirgroup.com',
+        'branch_id' => 1, 'status' => 'active']);
+
+    $result = employeeSyncWith(oracleWorkforce(450, [oracleEmployee('1001', oracleProfile())]))->sync();
+
+    expect($employee->refresh()->oracle_profession)->toBeNull();
+
+    $row = HrImportRow::where('hr_import_batch_id', $result['batch']->id)->where('emp_no', '1001')->sole();
+
+    expect($row->manager_email)->toBe('mona.manager@samirgroup.com')
+        ->and($row->contract_end_date)->toStartWith('2027-12-02');
+
+    app(OracleHrImportService::class)->resolveUnmatched($row, 'link', $employee->id);
+
+    $employee->refresh();
+
+    expect($employee->oracle_emp_no)->toBe('1001')
+        ->and($employee->oracle_job_category)->toBe('AppDev&prog&analysis')
+        ->and($employee->oracle_profession)->toBe('محلل نظم المعلومات')
+        ->and($employee->oracle_contract_end_date?->toDateString())->toBe('2027-12-02')
+        ->and($employee->oracle_manager_name)->toBe('Mona Manager')
+        ->and($employee->oracle_supervisor_email)->toBe('sami.supervisor@samirgroup.com');
 });
 
 it('corrects the day Oracle\'s hire dates are out, and stops correcting once Oracle does', function () {

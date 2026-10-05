@@ -38,6 +38,27 @@ class EmployeeFacts
     public const MIN_HIRE_YEAR = 1960;
 
     /**
+     * What Oracle says about somebody that the NOC decides nothing on: the
+     * staged key (and hr_import_rows column) => the employees column.
+     *
+     * One list, because two places write these — EmployeeSync for everyone
+     * already holding their Oracle number, and the review page's apply and
+     * link for everyone else — and a field added to one and not the other
+     * would be on some profiles and silently missing from the rest.
+     *
+     * @var array<string,string>
+     */
+    public const PROFILE_FIELDS = [
+        'job_category' => 'oracle_job_category',
+        'profession' => 'oracle_profession',
+        'contract_end_date' => 'oracle_contract_end_date',
+        'manager_name' => 'oracle_manager_name',
+        'manager_email' => 'oracle_manager_email',
+        'supervisor_name' => 'oracle_supervisor_name',
+        'supervisor_email' => 'oracle_supervisor_email',
+    ];
+
+    /**
      * @param  list<array<string,mixed>>  $rows  an /employees payload
      * @return list<array<string,mixed>> rows for OracleHrImportService
      */
@@ -91,9 +112,18 @@ class EmployeeFacts
             // "Active" / "Inactive", staged upper-case so it reads the same as
             // the ACTIVE / INACTIVE the /attendance view recorded before.
             'assignment_status' => mb_strtoupper(self::text($row['status'] ?? null) ?? '') ?: null,
-            'supervisor_name' => self::text($row['supervisorName'] ?? null),
-            'manager_name' => self::text($row['managerName'] ?? null),
+            'supervisor_name' => self::said($row['supervisorName'] ?? null),
+            'supervisor_email' => self::address($row['supervisorEmail'] ?? null),
+            'manager_name' => self::said($row['managerName'] ?? null),
+            'manager_email' => self::address($row['managerEmail'] ?? null),
+            // The job's family (Marketing, Engineers, AppDev&prog&analysis, …):
+            // 18 values, and "-" for 135 people. Not the retired view's
+            // employeeCategory, which classified the same people another way.
+            'job_category' => self::said($row['jobCategory'] ?? null),
+            // The profession on the person's official papers, in Arabic.
+            'profession' => self::said($row['profession'] ?? null),
             'hire_date' => self::hireDate($row['startDate'] ?? null)?->toDateString(),
+            'contract_end_date' => self::contractEndDate($row['contractEndDate'] ?? null)?->toDateString(),
         ];
     }
 
@@ -122,13 +152,54 @@ class EmployeeFacts
      */
     public static function hireDate(mixed $value, ?CarbonImmutable $now = null): ?CarbonImmutable
     {
+        $parsed = self::calendarDate($value);
+        $now ??= CarbonImmutable::now();
+
+        if (! $parsed || $parsed->year < self::MIN_HIRE_YEAR || $parsed->gt($now->addYear())) {
+            return null;
+        }
+
+        return $parsed;
+    }
+
+    /**
+     * Oracle's contract end date, or null for the "-" it sends for the 92
+     * people whose contract has none.
+     *
+     * **Taken as sent — not moved a day like the start date.** It arrives as
+     * dd-MON-yy, the text Oracle's database prints a date as, where startDate
+     * arrives as yyyy-MM-dd from the path that writes Riyadh midnight out in
+     * UTC. The dd-MON-yy the retired /attendance view sent was the correct
+     * day too. Measured 2026-10-05: of the 156 people who started on the 1st
+     * of a month, 101 have a contract ending on a month's last day as
+     * written; a day later, those would all end on the 1st. Should Oracle
+     * ever send this as yyyy-MM-dd, measure again before trusting it.
+     *
+     * A date in the past is kept: 94 people were Active with one, since Oracle
+     * does not always record a renewal. Only an impossible year is refused —
+     * 4712-12-31 is Oracle's "no end", not a date.
+     */
+    public static function contractEndDate(mixed $value): ?CarbonImmutable
+    {
+        $parsed = self::calendarDate($value);
+
+        if (! $parsed || $parsed->year < self::MIN_HIRE_YEAR || $parsed->year > 2100) {
+            return null;
+        }
+
+        return $parsed;
+    }
+
+    /**
+     * yyyy-MM-dd or dd-MMM-yy as a real calendar day, or null.
+     */
+    private static function calendarDate(mixed $value): ?CarbonImmutable
+    {
         $text = self::text($value);
 
         if ($text === null) {
             return null;
         }
-
-        $now ??= CarbonImmutable::now();
 
         if (preg_match('/^\d{4}-\d{2}-(\d{2})$/', $text, $m)) {
             $format = '!Y-m-d';
@@ -136,7 +207,8 @@ class EmployeeFacts
             // ucfirst(strtolower()) so Oracle's OCT matches PHP's Oct — the
             // same trick VacationImporter uses on the same date format. PHP
             // reads a two-digit year as 1970-1999 for 70-99, which is exactly
-            // right across the feed's 1988-2026.
+            // right across the feed's 1988-2026 hire dates and the 2003-2027
+            // its contract ends run to.
             $format = '!d-M-y';
             $text = ucfirst(mb_strtolower($text));
         } else {
@@ -150,13 +222,9 @@ class EmployeeFacts
         }
 
         // Carbon rolls an impossible day over rather than refusing it, so
-        // 2020-02-31 comes back as 2 March. A hire date nobody can explain is
+        // 2020-02-31 comes back as 2 March. A date nobody can explain is
         // worse than none, so compare the day back against the input.
         if (! $parsed || $parsed->day !== (int) $m[1]) {
-            return null;
-        }
-
-        if ($parsed->year < self::MIN_HIRE_YEAR || $parsed->gt($now->addYear())) {
             return null;
         }
 
@@ -185,6 +253,27 @@ class EmployeeFacts
             'F' => 'female',
             default => null,
         };
+    }
+
+    /**
+     * A field as Oracle wrote it, or null where it wrote its "-" for nothing.
+     *
+     * Kept as "-", every profile would show a dash as somebody's manager, and
+     * the 135 people with no job category would share one called "-".
+     */
+    private static function said(mixed $value): ?string
+    {
+        $text = self::text($value);
+
+        return $text === null || $text === '-' ? null : mb_substr($text, 0, 255);
+    }
+
+    /** A manager's or supervisor's address, lower-cased like the person's own. */
+    private static function address(mixed $value): ?string
+    {
+        $text = self::said($value);
+
+        return $text === null ? null : mb_strtolower($text);
     }
 
     private static function text(mixed $value): ?string

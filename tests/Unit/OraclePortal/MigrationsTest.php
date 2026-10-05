@@ -111,6 +111,33 @@ it('adds the Oracle fields to employees, and survives a re-run', function () {
     ]))->toBeTrue();
 });
 
+it('adds the profile fields to employees, and survives a re-run', function () {
+    Schema::create('employees', function (Blueprint $t) {
+        $t->id();
+        $t->string('name');
+        $t->timestamps();
+    });
+
+    runPortalMigration('add_oracle_profile_fields_to_employees_table');
+    runPortalMigration('add_oracle_profile_fields_to_employees_table');
+
+    // EmployeeFacts::PROFILE_FIELDS is what both writers loop over: a column
+    // it names and the migration lacks is a write that throws on the next sync.
+    expect(Schema::hasColumns('employees', array_values(App\Services\OraclePortal\EmployeeFacts::PROFILE_FIELDS)))->toBeTrue();
+});
+
+it('adds the profile fields to the staged rows, and survives a re-run', function () {
+    foreach (['create_hr_import_batches', 'create_hr_import_rows'] as $name) {
+        runPortalMigration($name);
+    }
+
+    runPortalMigration('add_oracle_portal_fields_to_hr_import_tables');
+    runPortalMigration('add_oracle_profile_fields_to_hr_import_rows_table');
+    runPortalMigration('add_oracle_profile_fields_to_hr_import_rows_table');
+
+    expect(Schema::hasColumns('hr_import_rows', array_keys(App\Services\OraclePortal\EmployeeFacts::PROFILE_FIELDS)))->toBeTrue();
+});
+
 it('adds the Oracle fields to the staging tables, and survives a re-run', function () {
     foreach (['create_hr_import_batches', 'create_hr_import_rows'] as $name) {
         runPortalMigration($name);
