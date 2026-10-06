@@ -26,6 +26,8 @@
     </div>
 </div>
 
+@include('admin.people._saudization-tabs', ['tab' => 'groups'])
+
 {{-- ── At a glance ──────────────────────────────────────────── --}}
 <div class="row g-3 mb-3">
     <div class="col-6 col-lg-3">

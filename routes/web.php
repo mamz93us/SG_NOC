@@ -1326,6 +1326,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         // Before people/{employee}, which would otherwise read "breakdown" as somebody's id.
         Route::get('people/breakdown', [\App\Http\Controllers\Admin\WorkforceBreakdownController::class, 'index'])->name('people.breakdown');
         Route::get('people/saudization', [\App\Http\Controllers\Admin\SaudizationController::class, 'index'])->name('people.saudization');
+        Route::get('people/saudization/departments', [\App\Http\Controllers\Admin\SaudizationController::class, 'departments'])->name('people.saudization.departments');
         Route::get('people/{employee}', [\App\Http\Controllers\Admin\EmployeeProfileController::class, 'show'])->name('people.show');
     });
 
