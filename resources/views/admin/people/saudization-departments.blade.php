@@ -24,32 +24,25 @@
 
 {{-- ── At a glance ──────────────────────────────────────────── --}}
 <div class="row g-3 mb-3">
-    <div class="col-6 col-lg-3">
+    <div class="col-6 col-lg-4">
         <div class="card shadow-sm border-0 h-100"><div class="card-body py-3">
             <div class="small text-muted">Departments meeting their target</div>
             <div class="fs-4 fw-bold text-success">{{ $compliant }}</div>
-            <div class="small text-muted">of {{ $compliant + $not_compliant }} with a target</div>
+            <div class="small text-muted">of {{ $compliant + $not_compliant }} departments</div>
         </div></div>
     </div>
-    <div class="col-6 col-lg-3">
+    <div class="col-6 col-lg-4">
         <div class="card shadow-sm border-0 h-100"><div class="card-body py-3">
             <div class="small text-muted">Departments below their target</div>
             <div class="fs-4 fw-bold {{ $not_compliant > 0 ? 'text-danger' : 'text-muted' }}">{{ $not_compliant }}</div>
             <div class="small text-muted">{{ number_format($short_by) }} {{ \Illuminate\Support\Str::plural('Saudi', $short_by) }} short, each counted on its own</div>
         </div></div>
     </div>
-    <div class="col-6 col-lg-3">
+    <div class="col-12 col-lg-4">
         <div class="card shadow-sm border-0 h-100"><div class="card-body py-3">
-            <div class="small text-muted">People in a professional group</div>
-            <div class="fs-4 fw-bold">{{ number_format($people) }}</div>
-            <div class="small text-muted">{{ number_format($saudis) }} Saudi · {{ $pct($people > 0 ? $saudis / $people * 100 : null) }}</div>
-        </div></div>
-    </div>
-    <div class="col-6 col-lg-3">
-        <div class="card shadow-sm border-0 h-100"><div class="card-body py-3">
-            <div class="small text-muted">People in no professional group</div>
-            <div class="fs-4 fw-bold">{{ number_format($outside_people) }}</div>
-            <div class="small text-muted">{{ $no_target }} {{ \Illuminate\Support\Str::plural('department', $no_target) }} with nobody in a group</div>
+            <div class="small text-muted">Saudis in the professional groups</div>
+            <div class="fs-4 fw-bold">{{ $pct($people > 0 ? $saudis / $people * 100 : null) }}</div>
+            <div class="small text-muted">{{ number_format($saudis) }} of {{ number_format($people) }} people</div>
         </div></div>
     </div>
 </div>
@@ -58,9 +51,18 @@
     <i class="bi bi-info-circle me-1"></i>
     The ministry sets a percentage for a <strong>profession</strong>, not for a department. A department's target is what
     its own professions ask of the people in it: 40% of 6 accountants plus 100% of 2 administrative staff is 4.4, so
-    5 Saudis. Only people in a professional group are counted; drivers, warehouse staff and others with no group are shown
-    beside the row. A <strong>head count</strong> from Oracle's nationality and job category, not the ministry's weighted figure.
+    5 Saudis. A <strong>head count</strong> from Oracle's nationality and job category, not the ministry's weighted figure.
     Open a department to see its professions and the Oracle departments it brings together.
+    @if ($uncounted_people > 0)
+        <div class="mt-1">
+            <strong>{{ number_format($uncounted_people) }} {{ \Illuminate\Support\Str::plural('person', $uncounted_people) }}</strong>
+            in no professional group (drivers, warehouse staff and others) are not counted at all, as Saudi or otherwise.
+            @if ($unlisted !== [])
+                {{ count($unlisted) }} {{ \Illuminate\Support\Str::plural('department', count($unlisted)) }} with nobody in a group
+                {{ count($unlisted) === 1 ? 'is' : 'are' }} not listed: {{ collect($unlisted)->pluck('name')->implode(', ') }}.
+            @endif
+        </div>
+    @endif
     @if ($short_by !== $groupsShortBy)
         <div class="mt-1">
             The departments are short of <strong>{{ number_format($short_by) }}</strong> between them, the professional groups of
@@ -106,42 +108,27 @@
                                 @endforeach
                             </div>
                         </td>
-                        <td class="text-end">
-                            {{ number_format($row['people']) }}
-                            @if ($row['outside_people'] > 0)
-                                <div class="small text-muted" title="In no professional group, so not counted: {{ $row['outside_saudis'] }} of them Saudi">+{{ $row['outside_people'] }} no group</div>
-                            @endif
-                        </td>
+                        <td class="text-end">{{ number_format($row['people']) }}</td>
                         <td class="text-end">{{ number_format($row['saudis']) }}</td>
                         <td>
-                            @if ($row['share'] === null)
-                                <span class="text-muted">—</span>
-                            @else
-                                <div class="d-flex align-items-center gap-2">
-                                    <div class="progress flex-grow-1 position-relative" style="height:8px;overflow:visible" role="progressbar" aria-valuenow="{{ round($row['share']) }}" aria-valuemin="0" aria-valuemax="100">
-                                        <div class="progress-bar {{ $row['compliant'] ? 'bg-success' : 'bg-danger' }} rounded" style="width:{{ round($row['share'], 1) }}%"></div>
-                                        <span class="position-absolute bg-dark" style="left:{{ min(100, round($row['target_percent'], 1)) }}%;top:-3px;width:2px;height:14px" title="Target: {{ $pct($row['target_percent']) }}"></span>
-                                    </div>
-                                    <span class="fw-semibold text-end" style="width:52px">{{ $pct($row['share']) }}</span>
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="progress flex-grow-1 position-relative" style="height:8px;overflow:visible" role="progressbar" aria-valuenow="{{ round($row['share']) }}" aria-valuemin="0" aria-valuemax="100">
+                                    <div class="progress-bar {{ $row['compliant'] ? 'bg-success' : 'bg-danger' }} rounded" style="width:{{ round($row['share'], 1) }}%"></div>
+                                    <span class="position-absolute bg-dark" style="left:{{ min(100, round($row['target_percent'], 1)) }}%;top:-3px;width:2px;height:14px" title="Target: {{ $pct($row['target_percent']) }}"></span>
                                 </div>
-                            @endif
+                                <span class="fw-semibold text-end" style="width:52px">{{ $pct($row['share']) }}</span>
+                            </div>
                         </td>
                         <td class="text-end">
-                            @if ($row['target_percent'] === null)
-                                <span class="text-muted">—</span>
-                            @else
-                                <span class="fw-semibold">{{ $row['saudis_required'] }} {{ \Illuminate\Support\Str::plural('Saudi', $row['saudis_required']) }}</span>
-                                <div class="small text-muted">{{ $pct($row['target_percent']) }} of {{ $row['people'] }}</div>
-                            @endif
+                            <span class="fw-semibold">{{ $row['saudis_required'] }} {{ \Illuminate\Support\Str::plural('Saudi', $row['saudis_required']) }}</span>
+                            <div class="small text-muted">{{ $pct($row['target_percent']) }} of {{ $row['people'] }}</div>
                         </td>
                         <td>
-                            @if ($row['compliant'] === true)
+                            @if ($row['compliant'])
                                 <span class="badge bg-success">Meets its target</span>
-                            @elseif ($row['compliant'] === false)
+                            @else
                                 <span class="badge bg-danger">Below its target</span>
                                 <div class="small text-danger">needs {{ $row['short_by'] }} more {{ \Illuminate\Support\Str::plural('Saudi', $row['short_by']) }}</div>
-                            @else
-                                <span class="badge bg-light text-muted border">Nobody in a professional group</span>
                             @endif
                         </td>
                     </tr>
@@ -175,8 +162,8 @@
                                                     <td class="text-end">{{ $num($slice['asks']) }}</td>
                                                 </tr>
                                             @endforeach
-                                            @if ($row['groups']->isNotEmpty())
                                                 <tr class="fw-semibold">
+
                                                     <td>Department target</td>
                                                     <td class="text-end">{{ $row['people'] }}</td>
                                                     <td class="text-end">{{ $row['saudis'] }}</td>
@@ -184,18 +171,8 @@
                                                     <td class="text-end">{{ $pct($row['target_percent']) }}</td>
                                                     <td class="text-end">{{ $num($row['groups']->sum('asks')) }} → {{ $row['saudis_required'] }}</td>
                                                 </tr>
-                                            @endif
-                                            @if ($row['outside_people'] > 0)
-                                                <tr class="text-muted">
-                                                    <td class="fst-italic">In no professional group (not counted)</td>
-                                                    <td class="text-end">{{ $row['outside_people'] }}</td>
-                                                    <td class="text-end">{{ $row['outside_saudis'] }}</td>
-                                                    <td class="text-end">{{ $pct($row['outside_saudis'] / $row['outside_people'] * 100) }}</td>
-                                                    <td class="text-end">—</td>
-                                                    <td class="text-end">—</td>
-                                                </tr>
-                                            @endif
                                         </tbody>
+
                                     </table>
                                 </div>
                                 <div class="col-lg-5">
@@ -213,7 +190,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="6" class="text-center text-muted py-5">Nobody in Oracle's employee list yet.</td></tr>
+                    <tr><td colspan="6" class="text-center text-muted py-5">Nobody is in a professional group yet.</td></tr>
                 @endforelse
             </tbody>
         </table>

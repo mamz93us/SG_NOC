@@ -23,11 +23,13 @@ use Illuminate\Support\Collection;
  *
  * Two things follow, and the page says both:
  *
- *  - **Only people in a professional group are counted.** A driver or a
- *    warehouse worker has no group in HR's table and so no percentage to be
- *    held to; counting them would let a department's Saudi drivers stand in
- *    for the Saudi engineers it lacks. They are shown beside the row, never
- *    dropped.
+ *  - **Only people in a professional group are counted — the rest are not
+ *    there at all.** A driver or a warehouse worker has no group in HR's table
+ *    and so no percentage to be held to: not a Saudi, not a non-Saudi, nought
+ *    ({@see Saudization}). They are in no row's people, no branch count and no
+ *    total, and a department with nobody in a group is not a row. The page
+ *    says in one line how many people that is and which departments it left
+ *    out, so nobody has to wonder where they went.
  *  - **Saudis in one profession cover another inside the same department.**
  *    The figure is the department's fair share of the whole, not a ruling per
  *    profession; the professions inside it are listed under the row with each
@@ -48,8 +50,9 @@ class SaudizationByDepartment
     /**
      * @return array{
      *     departments: Collection<int, array<string,mixed>>,
-     *     compliant: int, not_compliant: int, no_target: int,
-     *     people: int, saudis: int, outside_people: int, short_by: int
+     *     compliant: int, not_compliant: int,
+     *     people: int, saudis: int, short_by: int,
+     *     uncounted_people: int, unlisted: list<array{name: string, people: int}>
      * }
      */
     public function report(string $sort = 'needs'): array
@@ -64,47 +67,70 @@ class SaudizationByDepartment
         foreach ($this->counts() as $count) {
             $key = DepartmentName::key($count->oracle_department);
             $people = (int) $count->people;
-            $saudis = (int) $count->saudis;
 
             $department = &$departments[$key];
-            $department ??= ['key' => $key, 'forms' => [], 'oracle_departments' => [], 'branches' => [],
-                'groups' => [], 'outside_people' => 0, 'outside_saudis' => 0];
+            $department ??= ['key' => $key, 'forms' => [], 'every_form' => [], 'oracle_departments' => [],
+                'branches' => [], 'groups' => [], 'uncounted' => 0];
 
-            // Every spelling behind the row, and where its people are.
             $form = DepartmentName::base($count->oracle_department);
+            // Only to name a department that ends up with nobody counted.
+            $department['every_form'][$form] = ($department['every_form'][$form] ?? 0) + $people;
+
+            $group = $groups->get(mb_strtolower((string) $count->oracle_job_category));
+
+            if (! $group) {
+                // In no professional group: in no figure. Only how many.
+                $department['uncounted'] += $people;
+                unset($department);
+
+                continue;
+            }
+
+            // Every spelling behind the row, and where its counted people are.
             $department['forms'][$form] = ($department['forms'][$form] ?? 0) + $people;
             $original = trim((string) $count->oracle_department);
             $department['oracle_departments'][$original] = ($department['oracle_departments'][$original] ?? 0) + $people;
             $branch = $branches[$count->branch_id] ?? 'No branch';
             $department['branches'][$branch] = ($department['branches'][$branch] ?? 0) + $people;
 
-            $group = $groups->get(mb_strtolower((string) $count->oracle_job_category));
-
-            if (! $group) {
-                $department['outside_people'] += $people;
-                $department['outside_saudis'] += $saudis;
-            } else {
-                $department['groups'][$group->id] ??= ['group' => $group, 'people' => 0, 'saudis' => 0];
-                $department['groups'][$group->id]['people'] += $people;
-                $department['groups'][$group->id]['saudis'] += $saudis;
-            }
+            $department['groups'][$group->id] ??= ['group' => $group, 'people' => 0, 'saudis' => 0];
+            $department['groups'][$group->id]['people'] += $people;
+            $department['groups'][$group->id]['saudis'] += (int) $count->saudis;
 
             unset($department);
         }
 
-        $rows = collect($departments)->map(fn (array $department) => $this->row($department))->values();
+        $departments = collect($departments);
+        // A department with nobody in a professional group is not a row.
+        $rows = $departments->filter(fn (array $department) => $department['groups'] !== [])
+            ->map(fn (array $department) => $this->row($department))->values();
 
         return [
             'departments' => $this->sorted($rows, $sort),
-            // Strictly: a department with nobody in a group is null, and null == false.
-            'compliant' => $rows->whereStrict('compliant', true)->count(),
-            'not_compliant' => $rows->whereStrict('compliant', false)->count(),
-            'no_target' => $rows->whereStrict('compliant', null)->count(),
+            'compliant' => $rows->where('compliant', true)->count(),
+            'not_compliant' => $rows->where('compliant', false)->count(),
             'people' => (int) $rows->sum('people'),
             'saudis' => (int) $rows->sum('saudis'),
-            'outside_people' => (int) $rows->sum('outside_people'),
             'short_by' => (int) $rows->sum('short_by'),
+            'uncounted_people' => (int) $departments->sum('uncounted'),
+            'unlisted' => $departments->filter(fn (array $department) => $department['groups'] === [])
+                ->map(fn (array $department) => ['name' => self::name($department['every_form']), 'people' => $department['uncounted']])
+                ->sortBy(fn (array $department) => mb_strtolower($department['name']))
+                ->values()->all(),
         ];
+    }
+
+    /**
+     * The spelling most of a department's people are under; the shorter on a tie.
+     *
+     * @param  array<string,int>  $forms  base name => head count
+     */
+    private static function name(array $forms): string
+    {
+        $forms = collect($forms)->filter(fn ($count, $form) => (string) $form !== '');
+
+        return $forms->keys()->map(fn ($form) => (string) $form)
+            ->sortBy(fn (string $form) => [-$forms[$form], mb_strlen($form), $form])->first() ?? 'No department in Oracle';
     }
 
     /**
@@ -131,28 +157,19 @@ class SaudizationByDepartment
         // Rounded up once, like a group: 4.4 Saudis is five.
         $required = (int) ceil($asks - 1e-9);
 
-        // The spelling most of its people are under; the shorter on a tie.
-        $forms = collect($department['forms'])->filter(fn ($count, $form) => $form !== '');
-        $name = $forms->keys()->map(fn ($form) => (string) $form)
-            ->sortBy(fn (string $form) => [-$forms[$form], mb_strlen($form), $form])->first();
-
         arsort($department['branches']);
         ksort($department['oracle_departments']);
 
         return [
             'key' => $department['key'],
-            'name' => $name ?? 'No department in Oracle',
+            'name' => self::name($department['forms']),
             'people' => $people,
             'saudis' => $saudis,
             'share' => Saudization::share($saudis, $people),
-            'target_percent' => $people > 0 ? $asks / $people * 100 : null,
+            'target_percent' => $asks / $people * 100,
             'saudis_required' => $required,
-            // Null, not false, where nobody is in a professional group: there
-            // is no percentage for the department to meet or miss.
-            'compliant' => $people > 0 ? $saudis >= $required : null,
+            'compliant' => $saudis >= $required,
             'short_by' => max(0, $required - $saudis),
-            'outside_people' => $department['outside_people'],
-            'outside_saudis' => $department['outside_saudis'],
             'groups' => $groups,
             'branches' => $department['branches'],
             'oracle_departments' => $department['oracle_departments'],
@@ -163,7 +180,7 @@ class SaudizationByDepartment
     {
         $sorted = match ($sort) {
             'name' => $rows->sortBy(fn (array $row) => mb_strtolower($row['name'])),
-            'people' => $rows->sortBy(fn (array $row) => [-($row['people'] + $row['outside_people']), mb_strtolower($row['name'])]),
+            'people' => $rows->sortBy(fn (array $row) => [-$row['people'], mb_strtolower($row['name'])]),
             default => $rows->sortBy(fn (array $row) => [-$row['short_by'], -$row['people'], mb_strtolower($row['name'])]),
         };
 

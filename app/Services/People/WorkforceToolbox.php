@@ -168,9 +168,10 @@ class WorkforceToolbox
         return [
             'as_of' => now()->toDateString(),
             'company' => [
-                'employees_in_oracle_list' => $report['overall']['people'],
+                'employees_in_professional_groups' => $report['overall']['people'],
                 'saudis' => $report['overall']['saudis'],
                 'saudi_share_percent' => $percent($report['overall']['share']),
+                'more_saudis_needed' => $report['overall']['short_by'],
                 'no_nationality_on_record' => $report['overall']['unknown'],
             ],
             'groups_compliant' => $report['compliant'],
@@ -198,12 +199,9 @@ class WorkforceToolbox
                     'month_has_arrived' => $step['arrived'] ?: null,
                 ], fn ($value) => $value !== null), $row['announced']) ?: null,
             ], fn ($value) => $value !== null))->values()->all(),
-            'counted_by_no_group' => $report['outside']->map(fn (array $count) => [
-                'job_category' => $count['job_category'] ?? 'No job category in Oracle',
-                'employees' => $count['people'],
-                'saudis' => $count['saudis'],
-            ])->values()->all(),
+            'employees_not_counted' => $report['uncounted']['people'],
             'note' => 'A head count: Saudis divided by everybody in the group, from the nationality and job category Oracle holds for each current employee. '
+                .'Employees in no professional group (drivers, warehouse staff and others) are not counted at all - not as Saudis and not as anything else - so they are in none of these figures; employees_not_counted is only how many they are. '
                 .'The ministry\'s own figure on Qiwa weighs people (part-time, salary, the husband or son of a citizen) and may not apply a rule below a number of staff, '
                 .'so a group can read differently there. Say so when asked whether the company is officially compliant. '
                 .'more_saudis_needed is at the group\'s size today: the Saudis the percentage requires of that many employees, less the Saudis it has. It is not a number of hires - hiring also grows the group. '
@@ -224,8 +222,8 @@ class WorkforceToolbox
 
         $departments = $report['departments']
             ->when($wanted !== '', fn ($rows) => $rows->filter(fn (array $row) => str_contains(mb_strtolower($row['name']), $wanted)))
-            ->when($only === 'below_target', fn ($rows) => $rows->whereStrict('compliant', false))
-            ->when($only === 'meets_target', fn ($rows) => $rows->whereStrict('compliant', true))
+            ->when($only === 'below_target', fn ($rows) => $rows->where('compliant', false))
+            ->when($only === 'meets_target', fn ($rows) => $rows->where('compliant', true))
             ->values();
 
         if ($wanted !== '' && $departments->isEmpty()) {
@@ -248,15 +246,10 @@ class WorkforceToolbox
                 'employees_in_a_professional_group' => $row['people'],
                 'saudis' => $row['saudis'],
                 'saudi_share_percent' => $percent($row['share']),
-                'target_saudis' => $row['compliant'] === null ? null : $row['saudis_required'],
+                'target_saudis' => $row['saudis_required'],
                 'target_percent' => $percent($row['target_percent']),
-                'status' => match ($row['compliant']) {
-                    true => 'meets its target',
-                    false => 'below its target',
-                    default => 'nobody in a professional group, so no target',
-                },
-                'more_saudis_needed' => $row['compliant'] === false ? $row['short_by'] : null,
-                'employees_in_no_professional_group' => $row['outside_people'] ?: null,
+                'status' => $row['compliant'] ? 'meets its target' : 'below its target',
+                'more_saudis_needed' => $row['compliant'] ? null : $row['short_by'],
                 'professions' => $row['groups']->map(fn (array $slice) => [
                     'group' => $slice['group']->name_ar,
                     'group_english' => $slice['group']->name_en,
@@ -266,9 +259,10 @@ class WorkforceToolbox
                 ])->all() ?: null,
             ], fn ($value) => $value !== null))->values()->all(),
             'departments_not_shown' => max(0, $departments->count() - $shown->count()),
+            'employees_not_counted' => $report['uncounted_people'],
             'note' => 'The ministry sets a percentage for a profession, not for a department. A department\'s target is what its own professions ask of the people in it, added up and rounded up once - '
                 .'so it is the department\'s fair share, not an official requirement, and Saudis in one profession cover another inside the same department. '
-                .'Only employees in a professional group are counted; drivers, warehouse staff and others with no group are left out and reported separately. '
+                .'Only employees in a professional group are counted. Drivers, warehouse staff and others with no group are not counted at all - not as Saudis and not as anything else - and a department with nobody in a group is not listed; employees_not_counted is only how many they are. '
                 .'A department here is Oracle\'s department with its branches counted together. A head count, not the ministry\'s weighted (Qiwa) figure. Counts only.',
         ];
     }

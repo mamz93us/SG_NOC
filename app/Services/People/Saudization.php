@@ -24,6 +24,16 @@ use Illuminate\Support\Collection;
  * is not known is counted in the group and not as a Saudi, and reported — a
  * missing nationality must not make a group look better than it is.
  *
+ * **Somebody in no professional group is not counted at all** — not as a
+ * Saudi and not as anything else. Drivers, warehouse staff and everybody else
+ * whose job category no group counts (136 of 606 on 2026-10-06) have no
+ * percentage to be held to, so they are in no figure here: not a group's, not
+ * a department's, not the company's share. The first version put them in the
+ * company's share (258 of 606) and in a table of their own with a Saudi count,
+ * and HR's reading was the plain one: they are neither here nor there. The
+ * pages say how many they are in one line, so the head count still accounts
+ * for everybody, and nothing more.
+ *
  * Nothing is stored. Every figure is today's, so a hire shows the same day.
  */
 class Saudization
@@ -34,8 +44,8 @@ class Saudization
     /**
      * @return array{
      *     groups: Collection<int, array<string,mixed>>,
-     *     outside: Collection<int, array<string,mixed>>,
-     *     overall: array{people:int, saudis:int, unknown:int, share:?float},
+     *     overall: array{people:int, saudis:int, unknown:int, share:?float, short_by:int},
+     *     uncounted: array{people:int, categories: list<array{job_category: ?string, people:int}>},
      *     compliant: int, not_compliant: int, empty: int
      * }
      */
@@ -48,25 +58,31 @@ class Saudization
 
         $rows = $groups->map(fn (SaudizationGroup $group) => $this->row($group, $counts, $today));
 
-        // Everybody a group does not count, named rather than left out: a job
-        // category nobody has given a group, and the people with no category.
-        $outside = $counts
+        // Everybody no group counts: a job category nobody has given a group,
+        // and the people with no category. How many, and nothing else — they
+        // are in no figure, so there is no Saudi count to give for them.
+        $uncounted = $counts
             ->reject(fn (array $count, string $key) => $key !== '' && $claimed->has($key))
-            ->map(fn (array $count) => $count + ['share' => self::share($count['saudis'], $count['people'])])
-            ->sortBy(fn (array $count) => [$count['job_category'] === null ? 1 : 0, -$count['people']])
+            ->sortBy(fn (array $count) => [-$count['people'], $count['job_category'] === null ? 1 : 0])
+            ->map(fn (array $count) => ['job_category' => $count['job_category'], 'people' => $count['people']])
             ->values();
 
-        $people = (int) $counts->sum('people');
-        $saudis = (int) $counts->sum('saudis');
+        // The company's figures are the groups' added up, and only theirs.
+        $people = (int) $rows->sum('people');
+        $saudis = (int) $rows->sum('saudis');
 
         return [
             'groups' => $rows,
-            'outside' => $outside,
             'overall' => [
                 'people' => $people,
                 'saudis' => $saudis,
-                'unknown' => (int) $counts->sum('unknown'),
+                'unknown' => (int) $rows->sum('unknown'),
                 'share' => self::share($saudis, $people),
+                'short_by' => (int) $rows->sum('short_by'),
+            ],
+            'uncounted' => [
+                'people' => (int) $uncounted->sum('people'),
+                'categories' => $uncounted->all(),
             ],
             // Strictly: a group with nobody in it is null, and null == false.
             'compliant' => $rows->whereStrict('compliant', true)->count(),
