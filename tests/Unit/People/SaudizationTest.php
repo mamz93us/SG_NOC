@@ -308,19 +308,38 @@ it('reads the nationality whatever its case', function () {
     expect(saudizationRow('Legal'))->toMatchArray(['people' => 1, 'saudis' => 1, 'compliant' => true]);
 });
 
-it('names everybody no group counts, instead of leaving them out', function () {
+it('does not count somebody in no professional group at all, as a Saudi or otherwise', function () {
+    // Drivers, warehouse staff, anybody whose job category no group counts:
+    // no percentage to be held to, so they are in no figure. The first
+    // version had them in the company's share, where 200 Saudi drivers would
+    // have made the company look compliant and 200 others would have sunk it.
     staff('Sales', saudis: 1, others: 1);
     staff('Customs Clearance', saudis: 2, others: 0);
     Employee::create(['name' => 'Driver', 'oracle_assignment_status' => 'ACTIVE', 'oracle_nationality' => 'Indian', 'status' => 'active']);
+    Employee::create(['name' => 'Saudi driver', 'oracle_assignment_status' => 'ACTIVE', 'oracle_nationality' => 'Saudi', 'status' => 'active']);
 
     $report = app(Saudization::class)->report();
-    $outside = $report['outside']->keyBy(fn (array $count) => $count['job_category'] ?? '(none)');
 
-    expect($outside->keys()->all())->toBe(['Customs Clearance', '(none)'])
-        ->and($outside['Customs Clearance'])->toMatchArray(['people' => 2, 'saudis' => 2])
-        ->and($outside['(none)'])->toMatchArray(['people' => 1, 'saudis' => 0])
-        // The groups and what is outside them add up to everybody.
-        ->and($report['groups']->sum('people') + $report['outside']->sum('people'))->toBe($report['overall']['people']);
+    // The company is its professional groups: one Saudi of two.
+    expect($report['overall'])->toMatchArray(['people' => 2, 'saudis' => 1, 'unknown' => 0])
+        ->and($report['overall']['share'])->toBe(50.0)
+        // How many are left out, and nothing about what they are.
+        ->and($report['uncounted'])->toBe([
+            'people' => 4,
+            'categories' => [
+                ['job_category' => 'Customs Clearance', 'people' => 2],
+                ['job_category' => null, 'people' => 2],
+            ],
+        ])
+        ->and($report)->not->toHaveKey('outside');
+});
+
+it('adds the groups\' shortfalls into the company\'s', function () {
+    staff('Engineers', saudis: 14, others: 38);  // needs 2
+    staff('Marketing', saudis: 46, others: 42);  // needs 7
+    staff('Accountant', saudis: 10, others: 9);  // meets
+
+    expect(app(Saudization::class)->report()['overall']['short_by'])->toBe(9);
 });
 
 // ─── The pages ────────────────────────────────────────────────────
@@ -357,6 +376,8 @@ it('shows the table with each group\'s status, and Edit only to someone who may'
         ->toContain('30% of 52 people is 16 Saudis; the group has 14.')
         ->toContain('from Oct 2026')
         ->toContain('head count')
+        // Nobody is outside the groups here, so nothing is said about it.
+        ->not->toContain('not counted at all')
         ->toContain(route('admin.people.breakdown', ['by' => 'nationality']))
         ->not->toContain(route('admin.people.saudization.edit'));
 
@@ -377,6 +398,25 @@ it('renders the edit form with every group and a blank row for a new one', funct
         // The category in use is offered, and so is one a group already holds.
         ->toContain('<option value="Engineers" selected>')
         ->toContain('<option value="Accountant" selected>');
+});
+
+it('says in one line how many people are in no group, and gives no Saudi count for them', function () {
+    staff('Sales', saudis: 3, others: 2);
+    staff('Customs Clearance', saudis: 2, others: 0);
+    Employee::insert(array_fill(0, 5, ['name' => 'Driver', 'oracle_assignment_status' => 'ACTIVE', 'oracle_nationality' => 'Saudi', 'status' => 'active']));
+    saudizationCan('view-attendance');
+
+    $request = Request::create('/admin/people/saudization', 'GET');
+    $request->setUserResolver(fn () => auth()->user());
+    $html = app(SaudizationController::class)->index($request, app(Saudization::class))->render();
+
+    expect($html)->toContain('<strong>7 people</strong>')
+        ->toContain('are not counted at all, as Saudi or otherwise')
+        ->toContain('5 with no job category in Oracle, 2 in Customs Clearance')
+        // The company's share is the groups': 3 of 5, not 10 of 12.
+        ->toContain('3 of 5 people')
+        ->toContain('>60%<')
+        ->not->toContain('Counted by no group');
 });
 
 // ─── Editing the targets ──────────────────────────────────────────
@@ -511,7 +551,8 @@ it('gives the assistant each group\'s standing, in the page\'s own figures', fun
     $answer = (new WorkforceToolbox(workforceUser('view-attendance')))->call('get_saudization', []);
     $groups = collect($answer['groups'])->keyBy('job_category');
 
-    expect($answer['company'])->toMatchArray(['employees_in_oracle_list' => 71, 'saudis' => 24, 'saudi_share_percent' => 33.8])
+    expect($answer['company'])->toMatchArray(['employees_in_professional_groups' => 71, 'saudis' => 24, 'saudi_share_percent' => 33.8, 'more_saudis_needed' => 2])
+        ->and($answer)->not->toHaveKey('counted_by_no_group')
         ->and($answer['groups_not_compliant'])->toBe(1)
         ->and($groups['Engineers'])->toMatchArray([
             'group' => 'المهن الهندسية', 'employees' => 52, 'saudis' => 14, 'saudi_share_percent' => 26.9,

@@ -252,30 +252,42 @@ it('rounds a department\'s target up once, not once per profession', function ()
     expect(departmentRow('Planning'))->toMatchArray(['people' => 3, 'saudis' => 1, 'saudis_required' => 1, 'compliant' => true, 'short_by' => 0]);
 });
 
-it('does not let people with no professional group stand in for the ones who have', function () {
-    // Twelve Saudi drivers do not make up for the Saudi engineers it lacks —
-    // and they are shown beside the row, not dropped.
+it('does not count people with no professional group at all, as Saudis or otherwise', function () {
+    // Twelve Saudi drivers do not make up for the Saudi engineers it lacks,
+    // and three who are not Saudi do not count against it either: they are
+    // in no figure of the row — not its people, not its branches.
     departmentStaff('Warehouses - Jeddah', 'Engineers', saudis: 0, others: 10);
     departmentStaff('Warehouses - Jeddah', null, saudis: 12, others: 3);
     departmentStaff('Warehouses - Riyadh', 'Customs Clearance', saudis: 2, others: 0, branch: 2);
 
-    $row = departmentRow('Warehouses');
+    $report = app(SaudizationByDepartment::class)->report();
+    $row = $report['departments']->sole();
 
-    expect($row)->toMatchArray(['people' => 10, 'saudis' => 0, 'saudis_required' => 3, 'short_by' => 3, 'compliant' => false,
-        'outside_people' => 17, 'outside_saudis' => 14]);
+    expect($row)->toMatchArray(['name' => 'Warehouses', 'people' => 10, 'saudis' => 0, 'saudis_required' => 3, 'short_by' => 3, 'compliant' => false])
+        ->and($row['branches'])->toBe(['JED' => 10])
+        ->and($row['oracle_departments'])->toBe(['Warehouses - Jeddah' => 10])
+        ->and($row)->not->toHaveKeys(['outside_people', 'outside_saudis'])
+        // Only how many were left out.
+        ->and($report['people'])->toBe(10)
+        ->and($report['uncounted_people'])->toBe(17);
 });
 
-it('gives a department with nobody in a professional group no target at all', function () {
+it('does not list a department with nobody in a professional group, and says which it left out', function () {
     departmentStaff('Office Services - Jeddah', null, saudis: 2, others: 7);
+    departmentStaff('Human Resources Division', null, saudis: 3, others: 0);
+    departmentStaff('Accounting - Jeddah', 'Accountant', saudis: 2, others: 2);
 
     $report = app(SaudizationByDepartment::class)->report();
 
-    expect($report['departments']->sole())->toMatchArray(['name' => 'Office Services', 'people' => 0, 'compliant' => null,
-        'target_percent' => null, 'short_by' => 0, 'outside_people' => 9])
-        // Neither meeting nor missing: null is not false.
-        ->and($report['compliant'])->toBe(0)
+    expect($report['departments']->pluck('name')->all())->toBe(['Accounting'])
+        ->and($report['compliant'])->toBe(1)
         ->and($report['not_compliant'])->toBe(0)
-        ->and($report['no_target'])->toBe(1);
+        ->and($report['uncounted_people'])->toBe(12)
+        ->and($report['unlisted'])->toBe([
+            ['name' => 'Human Resources Division', 'people' => 3],
+            ['name' => 'Office Services', 'people' => 9],
+        ])
+        ->and($report)->not->toHaveKey('no_target');
 });
 
 it('adds up to everybody Oracle lists, and counts a person once', function () {
@@ -292,8 +304,14 @@ it('adds up to everybody Oracle lists, and counts a person once', function () {
 
     $report = app(SaudizationByDepartment::class)->report();
 
-    expect($report['people'] + $report['outside_people'])->toBe(25)
-        ->and($report['people'] + $report['outside_people'])->toBe(app(Saudization::class)->report()['overall']['people'])
+    $groups = app(Saudization::class)->report();
+
+    // Everybody Oracle lists is either counted or told apart as not counted,
+    // and the two pages agree on both.
+    expect($report['people'] + $report['uncounted_people'])->toBe(25)
+        ->and($report['people'])->toBe($groups['overall']['people'])
+        ->and($report['saudis'])->toBe($groups['overall']['saudis'])
+        ->and($report['uncounted_people'])->toBe($groups['uncounted']['people'])
         ->and(departmentRow('Accounting'))->toMatchArray(['people' => 7, 'saudis' => 3])
         // Somebody with no Oracle department is named, not dropped.
         ->and(departmentRow('No department in Oracle'))->toMatchArray(['people' => 1, 'saudis' => 1]);
@@ -313,13 +331,14 @@ it('puts the departments needing the most Saudis first, or sorts as asked', func
     departmentStaff('Accounting - Jeddah', 'Accountant', saudis: 5, others: 5);          // meets
     departmentStaff('Sales Division', 'Sales', saudis: 2, others: 18, branch: 2);         // 12 of 20, needs 10
     departmentStaff('Engineering - Jeddah', 'Engineers', saudis: 1, others: 9);           // 3 of 10, needs 2
-    departmentStaff('Zebra Stores - Jeddah', null, saudis: 0, others: 40);                // no target
+    departmentStaff('Zebra Stores - Jeddah', null, saudis: 0, others: 40);                // nobody counted: not a row
+    departmentStaff('Engineering - Jeddah', null, saudis: 30, others: 0);                 // and not part of a row's size
 
     $names = fn (string $sort) => app(SaudizationByDepartment::class)->report($sort)['departments']->pluck('name')->all();
 
-    expect($names('needs'))->toBe(['Sales Division', 'Engineering', 'Accounting', 'Zebra Stores'])
-        ->and($names('name'))->toBe(['Accounting', 'Engineering', 'Sales Division', 'Zebra Stores'])
-        ->and($names('people'))->toBe(['Zebra Stores', 'Sales Division', 'Accounting', 'Engineering']);
+    expect($names('needs'))->toBe(['Sales Division', 'Engineering', 'Accounting'])
+        ->and($names('name'))->toBe(['Accounting', 'Engineering', 'Sales Division'])
+        ->and($names('people'))->toBe(['Sales Division', 'Accounting', 'Engineering']);
 });
 
 // ─── The page ─────────────────────────────────────────────────────
@@ -345,7 +364,9 @@ it('shows each department with its status, its professions and the Oracle names 
         ->toContain('needs 2 more Saudis')
         ->toContain('5 Saudis')
         ->toContain('55% of 8')
-        ->toContain('+3 no group')
+        ->not->toContain('no group')
+        ->toContain('<strong>3 people</strong>')
+        ->toContain('are not counted at all, as Saudi or otherwise')
         ->toContain('Accounting - Jeddah')
         ->toContain('Accounting - Riyadh')
         ->toContain('المهن المحاسبية')

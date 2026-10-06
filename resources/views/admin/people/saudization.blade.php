@@ -32,7 +32,7 @@
 <div class="row g-3 mb-3">
     <div class="col-6 col-lg-3">
         <div class="card shadow-sm border-0 h-100"><div class="card-body py-3">
-            <div class="small text-muted">Saudis in Oracle's employee list</div>
+            <div class="small text-muted">Saudis in the professional groups</div>
             <div class="fs-4 fw-bold">{{ $pct($overall['share']) }}</div>
             <div class="small text-muted">{{ number_format($overall['saudis']) }} of {{ number_format($overall['people']) }} people</div>
         </div></div>
@@ -53,9 +53,9 @@
     </div>
     <div class="col-6 col-lg-3">
         <div class="card shadow-sm border-0 h-100"><div class="card-body py-3">
-            <div class="small text-muted">Counted by no group</div>
-            <div class="fs-4 fw-bold">{{ number_format($outside->sum('people')) }}</div>
-            <div class="small text-muted">people, listed below the table</div>
+            <div class="small text-muted">More Saudis needed</div>
+            <div class="fs-4 fw-bold {{ $overall['short_by'] > 0 ? 'text-danger' : 'text-muted' }}">{{ number_format($overall['short_by']) }}</div>
+            <div class="small text-muted">across the groups below their percentage</div>
         </div></div>
     </div>
 </div>
@@ -66,6 +66,13 @@
     holds for each current employee. The ministry's own figure weighs people (part-time, salary, the husband or son of a
     citizen) and may not apply a rule below a number of staff, so a group can read differently on Qiwa.
     <em>Needs N more Saudis</em> is at the group's size today: the Saudis its percentage requires of that many people, less the Saudis it has.
+    @if ($uncounted['people'] > 0)
+        <div class="mt-1">
+            <strong>{{ number_format($uncounted['people']) }} {{ \Illuminate\Support\Str::plural('person', $uncounted['people']) }}</strong>
+            in no professional group are not counted at all, as Saudi or otherwise:
+            {{ collect($uncounted['categories'])->map(fn ($c) => $c['people'].' '.($c['job_category'] === null ? 'with no job category in Oracle' : 'in '.$c['job_category']))->implode(', ') }}.
+        </div>
+    @endif
     @if ($overall['unknown'] > 0)
         <strong>{{ $overall['unknown'] }} {{ \Illuminate\Support\Str::plural('person', $overall['unknown']) }}</strong> have no nationality on record and are counted as not Saudi.
     @endif
@@ -174,37 +181,4 @@
         </table>
     </div>
 </div>
-
-{{-- ── Everybody no group counts ────────────────────────────── --}}
-@if ($outside->isNotEmpty())
-    <div class="card shadow-sm border-0">
-        <div class="card-header bg-transparent">
-            <strong>Counted by no group</strong>
-            <small class="text-muted ms-1">People in Oracle's list whose job category no group above counts.</small>
-        </div>
-        <div class="table-responsive">
-            <table class="table table-sm align-middle mb-0">
-                <thead class="table-light">
-                    <tr><th>Oracle job category</th><th class="text-end">People</th><th class="text-end">Saudis</th><th class="text-end">Saudi share</th></tr>
-                </thead>
-                <tbody>
-                    @foreach ($outside as $count)
-                        <tr>
-                            <td>
-                                @if ($count['job_category'] === null)
-                                    <span class="text-muted fst-italic">No job category in Oracle</span>
-                                @else
-                                    {{ $count['job_category'] }}
-                                @endif
-                            </td>
-                            <td class="text-end">{{ number_format($count['people']) }}</td>
-                            <td class="text-end">{{ number_format($count['saudis']) }}</td>
-                            <td class="text-end">{{ $pct($count['share']) }}</td>
-                        </tr>
-                    @endforeach
-                </tbody>
-            </table>
-        </div>
-    </div>
-@endif
 @endsection
