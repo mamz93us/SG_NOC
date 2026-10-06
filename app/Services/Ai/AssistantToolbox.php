@@ -112,6 +112,9 @@ class AssistantToolbox
      */
     private const PRESENCE_STALE_MINUTES = 15;
 
+    /** People one directory lookup hands back; past it the model is told to narrow the search. */
+    private const LOOKUP_LIMIT = 10;
+
     /** @var Collection<int, Employee>|null see team() */
     private ?Collection $team = null;
 
@@ -126,6 +129,9 @@ class AssistantToolbox
 
     /** see workforce() */
     private ?\App\Services\People\WorkforceToolbox $workforce = null;
+
+    /** Whether the last matchPeople() found its people by how the name sounds, not as written. */
+    private bool $matchedBySound = false;
 
     public function __construct(
         private User $user,
@@ -180,9 +186,9 @@ class AssistantToolbox
                 ['ticket_id' => ['type' => 'integer', 'description' => 'The ticket id, from get_my_tickets.']],
                 ['ticket_id']),
             $this->def('lookup_colleague',
-                'Search the employee directory for a colleague\'s work contact details — name, job title, department, branch, extension, work/mobile phone, email. Matches on name, email, phone or extension; can also filter to one branch.',
+                'Search the employee directory for a colleague\'s work contact details — name, job title, department, branch, extension, work/mobile phone, email. Matches on name (English or Arabic), email, phone or extension; can also filter to one branch.',
                 [
-                    'query' => ['type' => 'string', 'description' => 'Name, email, phone number or extension to search for. Leave blank (empty string) to only filter by branch.'],
+                    'query' => ['type' => 'string', 'description' => 'A name in English or Arabic, exactly as the employee wrote it (never translate or re-spell a name; the search reads both scripts and the different spellings of one name), or an email, phone number or extension. Leave blank (empty string) to only filter by branch.'],
                     'branch' => ['type' => 'string', 'description' => 'Optional — a branch name to narrow the search to (e.g. "Cairo", "ABH").'],
                 ],
                 []),
@@ -207,14 +213,14 @@ class AssistantToolbox
                 []),
             $this->def('get_team_member_attendance',
                 'Day-by-day attendance of ONE other person, in the same detail as get_my_attendance. Call it straight away whenever the employee asks about someone else\'s attendance: it checks access itself against the HR records and the attendance owner list, so never refuse or ask about the employee\'s role first. A person outside their access comes back as an error.',
-                ['member' => ['type' => 'string', 'description' => 'The person\'s name, email or employee number.']]
+                ['member' => ['type' => 'string', 'description' => 'The person\'s name in English or Arabic, exactly as the employee wrote it (never translate or re-spell a name; the search reads both scripts and the different spellings of one name), or their email or employee number.']]
                     + $this->periodParameters()
                     + ['branch' => ['type' => 'string', 'description' => 'Optional — the person\'s branch code (CAI) or city (Cairo). Only when the employee names that person\'s branch in this request; never carry one over from an earlier question.']],
                 ['member']),
             $this->def('get_team_presence',
                 'Who is in the building RIGHT NOW, among exactly the people get_team_attendance covers, from their fingerprint punches since the start of their day: in the building, left, or no punch yet today — with the time they arrived, their last punch and the door reader it was on, and whether Oracle has them on leave or a business trip today. Give member for one person ("is Ahmed in?"), or leave it out for a group ("who is in the office now?"). It checks access itself, so never refuse or ask about the employee\'s role first.',
                 [
-                    'member' => ['type' => 'string', 'description' => 'Optional — one person\'s name, email or employee number. Leave out for everyone.'],
+                    'member' => ['type' => 'string', 'description' => 'Optional — one person\'s name in English or Arabic, exactly as the employee wrote it (never translate or re-spell a name; the search reads both scripts and the different spellings of one name), or their email or employee number. Leave out for everyone.'],
                     'branch' => ['type' => 'string', 'description' => 'Optional — only people in this branch: its code (JED) or its city (Jeddah).'],
                     'department' => ['type' => 'string', 'description' => 'Optional — only people in this department.'],
                     'only' => ['type' => 'string', 'enum' => array_keys(self::PRESENCE_ONLY), 'description' => 'Optional — list only people in the building, or only those not in it. The counts still cover everyone.'],
@@ -235,7 +241,7 @@ class AssistantToolbox
             $this->def('get_team_member_vacation',
                 'Annual leave of ONE other person, in the same detail as get_my_vacation: their Oracle balance and leave records. Call it straight away whenever the employee asks about someone else\'s leave or balance: it checks access itself against the HR records and the attendance owner list, so never refuse or ask about the employee\'s role first. A person outside their access comes back as an error.',
                 [
-                    'member' => ['type' => 'string', 'description' => 'The person\'s name, email or employee number.'],
+                    'member' => ['type' => 'string', 'description' => 'The person\'s name in English or Arabic, exactly as the employee wrote it (never translate or re-spell a name; the search reads both scripts and the different spellings of one name), or their email or employee number.'],
                     'year' => ['type' => 'integer', 'description' => 'Optional — a year such as 2026. Defaults to the newest year Oracle has a balance for.'],
                     'branch' => ['type' => 'string', 'description' => 'Optional — the person\'s branch code (CAI) or city (Cairo). Only when the employee names that person\'s branch in this request; never carry one over from an earlier question.'],
                 ],
@@ -585,34 +591,44 @@ class AssistantToolbox
             return ['error' => 'query or branch is required'];
         }
 
-        $employees = Employee::query()
+        // The name is matched here, not by the database: it has to find a
+        // person by their Arabic name whichever way its letters are written,
+        // and by how the name sounds when it is spelled another way. Until
+        // 2026-10-06 this was `name LIKE %query%`, so every name asked for in
+        // Arabic found nobody.
+        $people = Employee::query()
             ->with(['branch', 'department'])
             ->where('status', 'active')
-            ->when($query !== '', function ($q) use ($query) {
-                $q->where(function ($w) use ($query) {
-                    $w->where('name', 'like', "%{$query}%")
-                        ->orWhere('email', 'like', "%{$query}%")
-                        ->orWhere('work_phone', 'like', "%{$query}%")
-                        ->orWhere('mobile_phone', 'like', "%{$query}%")
-                        ->orWhere('extension_number', 'like', "%{$query}%");
-                });
-            })
             ->when($branch !== '', function ($q) use ($branch) {
                 // Branches are named by code (CAI); people say the city (Cairo).
                 $q->whereHas('branch', fn ($b) => $b->where(
                     fn ($w) => $w->where('name', 'like', "%{$branch}%")->orWhere('city', 'like', "%{$branch}%")
                 ));
             })
-            ->limit(10)
+            ->orderBy('name')
             ->get();
 
-        if ($employees->isEmpty()) {
+        $bySound = false;
+
+        if ($query !== '') {
+            $needle = mb_strtolower($query);
+            $byContact = $people->filter(fn (Employee $e) => collect([$e->email, $e->work_phone, $e->mobile_phone, $e->extension_number])
+                ->contains(fn ($value) => filled($value) && str_contains(mb_strtolower((string) $value), $needle)));
+            $byName = $this->matchPeople($people, $query);
+            $bySound = $this->matchedBySound && $byContact->isEmpty();
+            $people = $this->firstNamesFirst($byName->merge($byContact)->unique('id')->values(), $query);
+        }
+
+        if ($people->isEmpty()) {
             return ['colleagues' => [], 'message' => 'No matching colleague found in the directory.'];
         }
 
-        return [
-            'colleagues' => $employees->map(fn (Employee $e) => [
+        $shown = $people->take(self::LOOKUP_LIMIT);
+
+        return array_filter([
+            'colleagues' => $shown->map(fn (Employee $e) => array_filter([
                 'name' => $e->name,
+                'name_arabic' => $e->name_ar ?: null,
                 'job_title' => $e->job_title,
                 'department' => $e->department?->name,
                 'branch' => $e->branch?->name,
@@ -620,8 +636,47 @@ class AssistantToolbox
                 'work_phone' => $e->work_phone,
                 'mobile_phone' => $e->mobile_phone,
                 'email' => $e->email,
-            ])->values()->all(),
-        ];
+            ], fn ($value) => $value !== null))->values()->all(),
+            'more_not_shown' => $people->count() > $shown->count() ? $people->count() - $shown->count() : null,
+            'note' => match (true) {
+                $bySound => 'Nobody is written exactly that way. These are the same name by how it sounds - Arabic and English spell one name several ways. Give the name as it is written here, and if more than one person is listed ask which is meant.',
+                $people->count() > $shown->count() => 'More people match than are shown. Ask for a second name, a branch or a department to narrow it down.',
+                default => null,
+            },
+        ], fn ($value) => $value !== null);
+    }
+
+    /**
+     * The people whose own first name is the first name asked for, ahead of
+     * the rest. Oracle's Arabic name is the full one — the person's, their
+     * father's, their family's — so on 2026-10-06 the Arabic for Mohamed was
+     * in 168 names and was the first name of far fewer, and the ten shown
+     * were simply the first ten of the alphabet.
+     *
+     * @param  Collection<int, Employee>  $people
+     * @return Collection<int, Employee>
+     */
+    private function firstNamesFirst(Collection $people, string $query): Collection
+    {
+        $asked = NameSound::words($query)[0] ?? '';
+
+        if ($asked === '') {
+            return $people;
+        }
+
+        $key = $this->personKey($asked);
+
+        return $people->sortBy(function (Employee $e) use ($asked, $key) {
+            foreach ([(string) $e->name, (string) $e->name_ar] as $name) {
+                $first = NameSound::words($name)[0] ?? '';
+
+                if ($first !== '' && ($this->personKey($first) === $key || NameSound::score($asked, $first) === 2)) {
+                    return 0;
+                }
+            }
+
+            return 1;
+        })->values();
     }
 
     private function getCompanyInfo(string $topic): array
@@ -1415,11 +1470,19 @@ class AssistantToolbox
      * its spaces taken out ("alamoudi"), and the Arabic name counts, with the
      * spellings of alef, teh marbuta and yeh made one.
      *
+     * And when nobody is written that way, the same name written another way
+     * ({@see NameSound}): an employee asking in Arabic was told nobody matched
+     * until they re-spelled the name in English themselves, because محمد is
+     * held as Mohammed, Mohamed, Mohammad and Muhammad, and a record with no
+     * Arabic name can only be reached by how the name sounds.
+     * `$matchedBySound` says the answer came that way, so a caller can say so.
+     *
      * @param  Collection<int, Employee>  $people
      * @return Collection<int, Employee>
      */
     private function matchPeople(Collection $people, string $query): Collection
     {
+        $this->matchedBySound = false;
         $needle = $this->personKey($query);
 
         if ($needle === '') {
@@ -1440,7 +1503,7 @@ class AssistantToolbox
 
         $words = preg_split('/[\s._\-]+/u', $needle, -1, PREG_SPLIT_NO_EMPTY) ?: [];
 
-        return $people
+        $written = $people
             ->filter(function (Employee $e) use ($words) {
                 $name = $this->personKey((string) $e->name);
                 $arabic = $this->personKey((string) $e->name_ar);
@@ -1455,6 +1518,42 @@ class AssistantToolbox
                 return $words !== [] && collect($words)->every(fn (string $word) => str_contains($haystack, $word));
             })
             ->values();
+
+        $sound = fn (Employee $e): int => NameSound::score(
+            $query,
+            (string) $e->name,
+            (string) $e->name_ar,
+            strstr((string) $e->email, '@', true) ?: '',
+        );
+
+        // A name asked for in Arabic can only be found as written on the
+        // records that hold an Arabic name, and 130 active employees — every
+        // SSS Egypt employee among them — hold none. They are the same name
+        // by its sound or they are not found at all, so the ones that are
+        // surely it join the people found as written.
+        if (preg_match('/\p{Arabic}/u', $query)) {
+            $written = $written->merge(
+                $people->filter(fn (Employee $e) => trim((string) $e->name_ar) === '' && $sound($e) === 2)
+            )->unique('id')->values();
+        }
+
+        if ($written->isNotEmpty()) {
+            return $written;
+        }
+
+        // Nobody as written. The same name written another way: Mohamed for
+        // Mohammad, or an Arabic name for a record that only has the English.
+        // Sure matches alone when there are any; the looser ones otherwise.
+        $scores = $people->mapWithKeys(fn (Employee $e) => [$e->id => $sound($e)]);
+        $best = (int) $scores->max();
+
+        if ($best === 0) {
+            return collect();
+        }
+
+        $this->matchedBySound = true;
+
+        return $people->filter(fn (Employee $e) => $scores[$e->id] === $best)->values();
     }
 
     /** Lower case, single spaces, and one spelling for the Arabic letters people write several ways. */
