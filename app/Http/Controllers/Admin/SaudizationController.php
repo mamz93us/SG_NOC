@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Employee;
 use App\Models\SaudizationGroup;
 use App\Services\People\Saudization;
+use App\Services\People\SaudizationByDepartment;
 use App\Support\RouteAccess;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -28,6 +29,22 @@ class SaudizationController extends Controller
     {
         return view('admin.people.saudization', $saudization->report() + [
             'canEdit' => RouteAccess::allows($request->user(), 'admin.people.saudization.edit'),
+        ]);
+    }
+
+    /**
+     * The same question department by department, Oracle's branch-by-branch
+     * department names read as one. Opens to whoever can open the table above.
+     */
+    public function departments(Request $request, SaudizationByDepartment $byDepartment, Saudization $saudization): View
+    {
+        $sort = $request->validate(['sort' => 'nullable|in:'.implode(',', array_keys(SaudizationByDepartment::SORTS))])['sort'] ?? 'needs';
+
+        return view('admin.people.saudization-departments', $byDepartment->report($sort) + [
+            'sort' => $sort,
+            // What the professional groups are short of, to set beside the
+            // departments' own sum: the two differ, and the page says why.
+            'groupsShortBy' => (int) $saudization->report()['groups']->sum('short_by'),
         ]);
     }
 
